@@ -1,0 +1,26 @@
+.layout {
+  min-height: 100vh;
+  background-color: var(--color-bg);
+  padding-inline: var(--page-padding-x);
+}
+
+.layout__container {
+  width: var(--layout-width);
+  max-width: 100%;
+  margin-inline: auto;
+  padding-top: var(--header-height);
+  padding-bottom: var(--space-xl);
+}
+
+.layout__body {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: var(--sidebar-feed-gap);
+  align-items: start;
+}
+
+.layout__content {
+  min-width: 0;
+  max-width: 100%;
+  padding-top: var(--space-xl);
+}
