@@ -12,6 +12,9 @@ function App() {
         <Route path="/chats" element={<StubPage title="Чаты" />} />
         <Route path="/notifications" element={<StubPage title="Уведомления" />} />
         <Route path="/profile" element={<StubPage title="Профиль" />} />
+        <Route path="/settings" element={<StubPage title="Настройки" />} />
+        <Route path="/faq" element={<StubPage title="FAQ" />} />
+        <Route path="/subscription" element={<StubPage title="Подписка" />} />
       </Routes>
     </Layout>
   );

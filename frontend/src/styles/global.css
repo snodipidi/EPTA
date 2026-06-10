@@ -160,33 +160,6 @@ img {
   min-height: calc(100vh - var(--header-height));
 }
 
-.sidebar__actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  margin-bottom: var(--space-xl);
-}
-
-.sidebar__icon-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-full);
-  color: #ffffff;
-  transition: opacity 0.15s;
-}
-
-.sidebar__icon-btn:hover {
-  opacity: 0.75;
-}
-
-.sidebar__icon-btn--active {
-  background-color: var(--color-surface);
-}
-
 .sidebar__nav {
   display: flex;
   flex-direction: column;

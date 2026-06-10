@@ -1,36 +1,20 @@
 import { NavLink } from "react-router-dom";
 import { mockTopUsers } from "../../data/mockTopUsers";
-import { AvatarIcon, BellIcon, UserIcon } from "../icons/Icons";
+import { AvatarIcon } from "../icons/Icons";
 
 const NAV_ITEMS = [
+  { label: "Профиль", to: "/profile" },
+  { label: "Уведомления", to: "/notifications" },
   { label: "Ленты", to: "/feeds" },
   { label: "Чаты", to: "/chats" },
+  { label: "Настройки", to: "/settings" },
+  { label: "FAQ", to: "/faq" },
+  { label: "Подписка", to: "/subscription" },
 ];
 
 export function Sidebar() {
   return (
     <aside className="sidebar">
-      <div className="sidebar__actions">
-        <NavLink
-          to="/notifications"
-          className={({ isActive }) =>
-            `sidebar__icon-btn${isActive ? " sidebar__icon-btn--active" : ""}`
-          }
-          aria-label="Уведомления"
-        >
-          <BellIcon size={20} />
-        </NavLink>
-        <NavLink
-          to="/profile"
-          className={({ isActive }) =>
-            `sidebar__icon-btn${isActive ? " sidebar__icon-btn--active" : ""}`
-          }
-          aria-label="Профиль"
-        >
-          <UserIcon size={20} />
-        </NavLink>
-      </div>
-
       <nav className="sidebar__nav">
         {NAV_ITEMS.map((item) => (
           <NavLink
