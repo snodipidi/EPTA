@@ -26,7 +26,7 @@ export const mockPosts: Post[] = [
       displayName: "Ещё кто-то",
       username: "random_user",
     },
-    text: "Второй пост для примера ленты. Тут тоже какой-то текст.",
+    text: "ыыыыы 42",
     hashtags: ["епта", "тест"],
     images: [],
     counters: { comments: 3, reposts: 1, likes: 7 },

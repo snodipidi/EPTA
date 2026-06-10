@@ -1,6 +1,4 @@
 import { AvatarIcon, ImageUploadIcon } from "../icons/Icons";
-import "./PostCreator.css";
-
 export function PostCreator() {
   return (
     <div className="post-creator">

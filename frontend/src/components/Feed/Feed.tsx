@@ -3,8 +3,6 @@ import { getPosts } from "../../api/posts";
 import type { Post } from "../../types/post";
 import { PostCard } from "../PostCard/PostCard";
 import { PostCreator } from "../PostCreator/PostCreator";
-import "./Feed.css";
-
 export function Feed() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);

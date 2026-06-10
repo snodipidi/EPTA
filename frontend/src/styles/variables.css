@@ -36,6 +36,7 @@
   --layout-width: min(80vw, var(--layout-max-width));
   --page-padding-x: clamp(16px, 2vw, 32px);
   --sidebar-feed-gap: clamp(28px, 4vw, 48px);
+  --sidebar-col-width: 220px;
 }
 
 @media (min-width: 1280px) {

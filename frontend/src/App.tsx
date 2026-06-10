@@ -10,7 +10,6 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/feeds" element={<StubPage title="Ленты" />} />
         <Route path="/chats" element={<StubPage title="Чаты" />} />
-        <Route path="/tops" element={<StubPage title="Топы" />} />
         <Route path="/notifications" element={<StubPage title="Уведомления" />} />
         <Route path="/profile" element={<StubPage title="Профиль" />} />
       </Routes>

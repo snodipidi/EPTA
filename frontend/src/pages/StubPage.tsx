@@ -1,5 +1,3 @@
-import "./StubPage.css";
-
 interface StubPageProps {
   title: string;
 }

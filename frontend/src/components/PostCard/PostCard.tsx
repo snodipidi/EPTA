@@ -9,8 +9,6 @@ import {
   RepostIcon,
   ShareIcon,
 } from "../icons/Icons";
-import "./PostCard.css";
-
 interface PostCardProps {
   post: Post;
 }

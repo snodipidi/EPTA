@@ -17,7 +17,7 @@
     "id": "1",
     "author": {
       "id": "u1",
-      "displayName": "Ктото там",
+      "displayName": "Кто-то там",
       "username": "его_юз",
       "avatarUrl": "https://..."
     },
