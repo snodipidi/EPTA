@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { getPosts } from "../api/posts";
 import { CURRENT_USER_ID, mockCurrentUser } from "../data/mockProfile";
 import type { Post } from "../types/post";
@@ -39,6 +40,9 @@ export function ProfilePage() {
           </div>
           <p className="profile-page__bio">{profile.bio}</p>
         </div>
+        <Link to="/login" className="profile-page__login">
+          войти
+        </Link>
       </section>
 
       <section className="profile-page__posts">
