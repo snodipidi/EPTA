@@ -1,0 +1,17 @@
+node_modules
+dist
+coverage
+.git
+.env
+.env.*
+*.log
+.vscode
+.idea
+test
+
+# Stray compiled config artifacts — the source of truth is prisma.config.ts.
+# (An older tsc run emitted these next to the source; keep them out of the image
+#  so Prisma can't pick up a stale prisma.config.js during `prisma generate`.)
+prisma.config.js
+prisma.config.js.map
+prisma.config.d.ts

@@ -1,0 +1,660 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// EPTA — Prisma schema
+//
+// This schema is the result of an architectural audit, not a 1:1 translation of
+// a raw SQL dump. The notable decisions (and the reasoning behind them) are
+// documented inline so future maintainers understand *why* — search for "DECISION".
+// ─────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  ENUMS
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// Coarse-grained authorization role. Fine-grained permissions can later be
+/// layered on top (e.g. a CASL ability factory) without changing this enum.
+enum UserRole {
+  USER
+  MODERATOR
+  ADMIN
+  OWNER
+}
+
+/// Account lifecycle. DECISION: we never hard-delete a user row, because posts,
+/// comments and chat messages reference the author with NOT NULL. Instead a
+/// "deleted" account is flipped to DELETED and its PII anonymized by a queue
+/// job. This resolves the `author_id NOT NULL` + `ON DELETE SET NULL` conflict
+/// from the source spec (see Post.authorId) while preserving thread integrity.
+enum UserStatus {
+  ACTIVE
+  SUSPENDED // temporary moderator action
+  DEACTIVATED // user hid their account, reversible
+  DELETED // anonymized, irreversible
+}
+
+/// Who may see a profile / its posts. Enforced in the service layer + guards.
+enum ProfileVisibility {
+  PUBLIC
+  FOLLOWERS_ONLY
+  PRIVATE
+}
+
+/// Moderation verdict attached to any user-generated content. DECISION: this is
+/// the integration seam for the future Python moderation-service. Content is
+/// created as PENDING (or APPROVED if auto-moderation is off), a queue job calls
+/// the service, and the verdict is written back here. The feed query filters on
+/// it, so turning moderation on later requires no schema change.
+enum ModerationStatus {
+  PENDING
+  APPROVED
+  FLAGGED
+  REJECTED
+}
+
+enum PostType {
+  ORIGINAL
+  REPOST // pure share of another post
+  QUOTE // repost with added commentary
+}
+
+/// Extensible reaction taxonomy. The frontend currently only renders "likes",
+/// but modelling the type as an enum (instead of a boolean `liked` column) means
+/// adding 😂/😮/❤️ later is a data change, not a migration of every counter.
+enum ReactionType {
+  LIKE
+  LOVE
+  HAHA
+  WOW
+  SAD
+  ANGRY
+}
+
+enum NotificationType {
+  FOLLOW
+  LIKE
+  COMMENT
+  REPLY
+  REPOST
+  MENTION
+  CHAT_MESSAGE
+  SYSTEM
+}
+
+enum ChatType {
+  DIRECT // exactly two participants
+  GROUP // 3+ participants, has a name/owner
+}
+
+enum ChatMemberRole {
+  MEMBER
+  ADMIN
+  OWNER
+}
+
+enum SubscriptionTier {
+  FREE
+  PRO
+  VIP
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  EXPIRED
+  PAST_DUE
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  AUDIO
+  GIF
+}
+
+/// Lifecycle of an uploaded asset. DECISION: media is registered in the DB
+/// *before* the bytes are processed (resize, transcode, virus-scan via a queue
+/// job). Clients poll/subscribe until it flips to READY.
+enum MediaStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  USERS & IDENTITY
+// ═════════════════════════════════════════════════════════════════════════════
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  email        String     @unique
+  username     String     @unique
+  passwordHash String     @map("password_hash")
+  role         UserRole   @default(USER)
+  status       UserStatus @default(ACTIVE)
+
+  emailVerifiedAt DateTime? @map("email_verified_at")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  // Soft-delete marker (see UserStatus.DELETED). Null = live account.
+  deletedAt DateTime? @map("deleted_at")
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  profile       Profile?
+  refreshTokens RefreshToken[]
+  subscription  Subscription?
+
+  posts       Post[]       @relation("PostAuthor")
+  comments    Comment[]
+  reactions   Reaction[]
+  bookmarks   Bookmark[]
+  mediaAssets MediaAsset[]
+  stories     Story[]
+
+  // Follows — two sides of the same join table.
+  following Follow[] @relation("Follower")
+  followers Follow[] @relation("Following")
+
+  // Blocks — two sides of the user_blocks join table.
+  blocking  UserBlock[] @relation("Blocker")
+  blockedBy UserBlock[] @relation("Blocked")
+
+  // Notifications addressed TO this user, and ones this user triggered.
+  notifications   Notification[] @relation("NotificationRecipient")
+  triggeredNotifs Notification[] @relation("NotificationActor")
+
+  chatMemberships ChatMember[]
+  sentMessages    ChatMessage[]    @relation("MessageSender")
+  messageReceipts MessageReceipt[]
+
+  @@index([status])
+  @@index([role])
+  @@map("users")
+}
+
+/// Profile is split from User (1:1) to separate the *auth/identity* concern from
+/// the *public presentation* concern (Separation of Concerns). Auth queries stay
+/// lean; profile edits never touch the credentials row.
+model Profile {
+  id          String            @id @default(uuid()) @db.Uuid
+  userId      String            @unique @map("user_id") @db.Uuid
+  displayName String            @map("display_name")
+  bio         String?           @db.Text
+  avatarUrl   String?           @map("avatar_url")
+  coverUrl    String?           @map("cover_url")
+  location    String?
+  website     String?
+  visibility  ProfileVisibility @default(PUBLIC)
+
+  // DECISION: denormalized counters. Followers/following are read on every
+  // profile view but expensive to COUNT() at scale. We keep them here and update
+  // them transactionally (or via the counters queue) on follow/unfollow. The
+  // frontend `UserProfile` shape already expects `followers`/`following` numbers.
+  followersCount Int @default(0) @map("followers_count")
+  followingCount Int @default(0) @map("following_count")
+  postsCount     Int @default(0) @map("posts_count")
+
+  // Leaderboard ("Топы" in the UI). Aggregated by a scheduled job; indexed for
+  // cheap top-N ordering.
+  reputationScore Int @default(0) @map("reputation_score")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([reputationScore(sort: Desc)])
+  @@map("profiles")
+}
+
+/// Refresh-token store enabling rotation + reuse-detection + remote logout.
+/// DECISION: we persist a HASH of the token (never the raw value). On refresh we
+/// rotate (revoke old, issue new). If a revoked token is presented again, the
+/// whole token family is nuked — that's the classic reuse-detection defense.
+model RefreshToken {
+  id           String  @id @default(uuid()) @db.Uuid
+  userId       String  @map("user_id") @db.Uuid
+  tokenHash    String  @unique @map("token_hash")
+  // `family` groups tokens descended from one login, for chain revocation.
+  family       String  @db.Uuid
+  // Self-reference: which token this one replaced (audit trail of the rotation).
+  replacedById String? @map("replaced_by_id") @db.Uuid
+
+  userAgent String?   @map("user_agent")
+  ip        String?
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([family])
+  @@map("refresh_tokens")
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  SOCIAL GRAPH
+// ═════════════════════════════════════════════════════════════════════════════
+
+model Follow {
+  id          String   @id @default(uuid()) @db.Uuid
+  followerId  String   @map("follower_id") @db.Uuid
+  followingId String   @map("following_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  follower  User @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  // A user can follow another at most once; can't follow themselves (enforced in service).
+  @@unique([followerId, followingId])
+  @@index([followingId]) // "who follows me"
+  @@map("follows")
+}
+
+/// user_blocks (audit requirement #3). A block hides content both ways and
+/// prevents DMs/follows. Distinct from Follow so block logic never pollutes the
+/// follow graph.
+model UserBlock {
+  id        String   @id @default(uuid()) @db.Uuid
+  blockerId String   @map("blocker_id") @db.Uuid
+  blockedId String   @map("blocked_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  blocker User @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
+  @@map("user_blocks")
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  POSTS, COMMENTS, REACTIONS, BOOKMARKS
+// ═════════════════════════════════════════════════════════════════════════════
+
+model Post {
+  id   String   @id @default(uuid()) @db.Uuid
+  type PostType @default(ORIGINAL)
+
+  // DECISION — resolves the audit's #1 conflict (author_id NOT NULL +
+  // ON DELETE SET NULL). Those two are contradictory in SQL. We keep authorId
+  // NOT NULL and use `onDelete: Restrict`: a User row can't be hard-deleted while
+  // posts exist. Account "deletion" is a soft-delete (User.status = DELETED) +
+  // anonymization job, so the post — and every reply referencing it — survives,
+  // and the UI renders a "deleted user" tombstone instead of crashing on null.
+  authorId String @map("author_id") @db.Uuid
+  author   User   @relation("PostAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+
+  text     String?  @db.Text
+  hashtags String[] // Postgres text[] — mirrors the frontend `hashtags: string[]`
+
+  // Self-relation for reposts/quotes. SET NULL is *correct here*: if the original
+  // post is deleted, a quote-post keeps its own commentary and just loses the embed.
+  parentPostId String? @map("parent_post_id") @db.Uuid
+  parentPost   Post?   @relation("PostReposts", fields: [parentPostId], references: [id], onDelete: SetNull)
+  reposts      Post[]  @relation("PostReposts")
+
+  // Distinct from a repost: a *reply* references the post it answers. Backs the
+  // frontend `Post.replyTo` field. SET NULL so a reply survives the parent's
+  // deletion (it just loses the "replying to" link).
+  replyToPostId String? @map("reply_to_post_id") @db.Uuid
+  replyToPost   Post?   @relation("PostReplies", fields: [replyToPostId], references: [id], onDelete: SetNull)
+  postReplies   Post[]  @relation("PostReplies")
+
+  moderationStatus ModerationStatus @default(APPROVED) @map("moderation_status")
+
+  // Denormalized counters — the frontend `counters` object reads these directly.
+  // Maintained via the counters queue so a like never blocks on a COUNT().
+  likesCount     Int @default(0) @map("likes_count")
+  commentsCount  Int @default(0) @map("comments_count")
+  repostsCount   Int @default(0) @map("reposts_count")
+  bookmarksCount Int @default(0) @map("bookmarks_count")
+  viewsCount     Int @default(0) @map("views_count")
+
+  publishedAt DateTime  @default(now()) @map("published_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  editedAt    DateTime? @map("edited_at")
+  deletedAt   DateTime? @map("deleted_at") // soft-delete for posts too
+
+  comments      Comment[]
+  reactions     Reaction[]
+  bookmarks     Bookmark[]
+  media         PostMedia[]
+  notifications Notification[]
+
+  @@index([authorId, publishedAt(sort: Desc)])
+  @@index([publishedAt(sort: Desc)])
+  @@index([parentPostId])
+  @@index([replyToPostId])
+  @@index([moderationStatus])
+  @@map("posts")
+}
+
+/// Comments. DECISION: a comment supports threaded replies via a self-relation
+/// (`parentCommentId`). This backs the frontend's `replyTo` concept. Replies
+/// cascade-delete with their parent comment, but a top-level comment's removal is
+/// soft (deletedAt) to keep child replies coherent.
+model Comment {
+  id       String @id @default(uuid()) @db.Uuid
+  postId   String @map("post_id") @db.Uuid
+  authorId String @map("author_id") @db.Uuid
+
+  parentCommentId String?   @map("parent_comment_id") @db.Uuid
+  parentComment   Comment?  @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies         Comment[] @relation("CommentReplies")
+
+  text String @db.Text
+
+  moderationStatus ModerationStatus @default(APPROVED) @map("moderation_status")
+  likesCount       Int              @default(0) @map("likes_count")
+  repliesCount     Int              @default(0) @map("replies_count")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  reactions Reaction[]
+
+  @@index([postId, createdAt])
+  @@index([parentCommentId])
+  @@index([authorId])
+  @@map("comments")
+}
+
+/// Polymorphic reaction: targets a post OR a comment (exactly one is non-null,
+/// enforced in the service + a CHECK could be added in a raw migration).
+/// DECISION: one row per (user, target) with a `type` column — switching a LIKE
+/// to a LOVE is an UPDATE, and a user can react once per target. This is why the
+/// API can stay "toggle"-shaped while supporting many reaction types.
+model Reaction {
+  id     String       @id @default(uuid()) @db.Uuid
+  userId String       @map("user_id") @db.Uuid
+  type   ReactionType @default(LIKE)
+
+  postId    String? @map("post_id") @db.Uuid
+  commentId String? @map("comment_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post    Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  // One reaction per user per post, and per user per comment.
+  @@unique([userId, postId])
+  @@unique([userId, commentId])
+  @@index([postId])
+  @@index([commentId])
+  @@map("reactions")
+}
+
+model Bookmark {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  postId String @map("post_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("bookmarks")
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  MEDIA
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// A stored asset (image/video/…). DECISION: media is a first-class entity, not
+/// a URL column on Post. This lets the same upload be reused (avatar, post,
+/// story), carries processing status for the async pipeline, and keeps S3 keys
+/// out of business tables. Public URLs are derived from `storageKey` + the CDN
+/// base, never hard-coded.
+model MediaAsset {
+  id      String      @id @default(uuid()) @db.Uuid
+  ownerId String      @map("owner_id") @db.Uuid
+  type    MediaType
+  status  MediaStatus @default(PENDING)
+
+  storageKey String  @map("storage_key") // S3/MinIO object key
+  bucket     String
+  mimeType   String  @map("mime_type")
+  sizeBytes  Int     @map("size_bytes")
+  width      Int?
+  height     Int?
+  durationMs Int?    @map("duration_ms")
+  // Generated thumbnail/variant keys (filled by the media-processing job).
+  variants   Json?
+  altText    String? @map("alt_text")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  owner      User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  postLinks  PostMedia[]
+  storyMedia StoryMedia[]
+
+  @@index([ownerId])
+  @@index([status])
+  @@map("media_assets")
+}
+
+/// Join table giving each post an ORDERED set of media. The frontend `images`
+/// array maps to these rows ordered by `position`; `MediaAsset.altText`/the
+/// per-link override feed the `alt` field.
+model PostMedia {
+  id       String @id @default(uuid()) @db.Uuid
+  postId   String @map("post_id") @db.Uuid
+  mediaId  String @map("media_id") @db.Uuid
+  position Int    @default(0)
+
+  post  Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  media MediaAsset @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, mediaId])
+  @@index([postId, position])
+  @@map("post_media")
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  STORIES  (audit requirement #4 — modelled now, API can come later)
+// ═════════════════════════════════════════════════════════════════════════════
+
+model Story {
+  id       String @id @default(uuid()) @db.Uuid
+  authorId String @map("author_id") @db.Uuid
+
+  caption   String?  @db.Text
+  // Stories expire — indexed so the "active stories" query is cheap.
+  expiresAt DateTime @map("expires_at")
+
+  viewsCount Int @default(0) @map("views_count")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  author User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  media  StoryMedia[]
+
+  @@index([authorId, expiresAt])
+  @@index([expiresAt])
+  @@map("stories")
+}
+
+model StoryMedia {
+  id         String @id @default(uuid()) @db.Uuid
+  storyId    String @map("story_id") @db.Uuid
+  mediaId    String @map("media_id") @db.Uuid
+  position   Int    @default(0)
+  // Per-slide display duration (stories auto-advance).
+  durationMs Int    @default(5000) @map("duration_ms")
+
+  story Story      @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  media MediaAsset @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, mediaId])
+  @@index([storyId, position])
+  @@map("story_media")
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  NOTIFICATIONS
+// ═════════════════════════════════════════════════════════════════════════════
+
+model Notification {
+  id          String           @id @default(uuid()) @db.Uuid
+  recipientId String           @map("recipient_id") @db.Uuid
+  // Who caused it (nullable for SYSTEM notifications).
+  actorId     String?          @map("actor_id") @db.Uuid
+  type        NotificationType
+
+  // Optional subject references — keep the notification self-contained enough to
+  // render without N+1 joins, while still linking the source entity.
+  postId String? @map("post_id") @db.Uuid
+  // Free-form payload (e.g. comment snippet, chat id) for forward-compat.
+  data   Json?
+
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  recipient User  @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  actor     User? @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  post      Post? @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  // The hot query is "my unread notifications, newest first".
+  @@index([recipientId, readAt, createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  CHATS  (DIRECT + GROUP, WebSocket-backed)
+// ═════════════════════════════════════════════════════════════════════════════
+
+model Chat {
+  id        String   @id @default(uuid()) @db.Uuid
+  type      ChatType
+  // Group-only fields (null for DIRECT).
+  name      String?
+  avatarUrl String?  @map("avatar_url")
+
+  // For DIRECT chats we store a canonical pair key (sorted "uidA:uidB") so a
+  // duplicate DM can't be created. Null for groups.
+  directKey String? @unique @map("direct_key")
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  lastMessageAt DateTime? @map("last_message_at")
+
+  members  ChatMember[]
+  messages ChatMessage[]
+
+  @@index([lastMessageAt(sort: Desc)])
+  @@map("chats")
+}
+
+model ChatMember {
+  id     String         @id @default(uuid()) @db.Uuid
+  chatId String         @map("chat_id") @db.Uuid
+  userId String         @map("user_id") @db.Uuid
+  role   ChatMemberRole @default(MEMBER)
+
+  // Read-state pointer: last message this member has read (for unread badges).
+  lastReadMessageId String?   @map("last_read_message_id") @db.Uuid
+  mutedUntil        DateTime? @map("muted_until")
+  joinedAt          DateTime  @default(now()) @map("joined_at")
+  leftAt            DateTime? @map("left_at")
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([chatId, userId])
+  @@index([userId])
+  @@map("chat_members")
+}
+
+model ChatMessage {
+  id       String @id @default(uuid()) @db.Uuid
+  chatId   String @map("chat_id") @db.Uuid
+  senderId String @map("sender_id") @db.Uuid
+
+  text     String?  @db.Text
+  // Attachments referenced by media id (kept loose to avoid a join table until
+  // multi-attachment messages are actually needed).
+  mediaIds String[] @map("media_ids")
+
+  // Reply-to within a chat thread.
+  replyToId String?       @map("reply_to_id") @db.Uuid
+  replyTo   ChatMessage?  @relation("MessageReply", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   ChatMessage[] @relation("MessageReply")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  editedAt  DateTime? @map("edited_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  chat     Chat             @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sender   User             @relation("MessageSender", fields: [senderId], references: [id], onDelete: Restrict)
+  receipts MessageReceipt[]
+
+  // Primary access pattern: a chat's messages newest-first (keyset pagination).
+  @@index([chatId, createdAt(sort: Desc)])
+  @@map("chat_messages")
+}
+
+/// Per-recipient delivery/read receipt. DECISION: a dedicated table (rather than
+/// a column on the message) scales to group chats and supports "seen by N".
+model MessageReceipt {
+  id          String    @id @default(uuid()) @db.Uuid
+  messageId   String    @map("message_id") @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  deliveredAt DateTime? @map("delivered_at")
+  readAt      DateTime? @map("read_at")
+
+  message ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([userId, readAt])
+  @@map("message_receipts")
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  SUBSCRIPTIONS  (free / pro / vip)
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// One active subscription row per user (1:1). History/invoices would live in a
+/// separate table when billing is wired up; this models entitlement only.
+model Subscription {
+  id     String             @id @default(uuid()) @db.Uuid
+  userId String             @unique @map("user_id") @db.Uuid
+  tier   SubscriptionTier   @default(FREE)
+  status SubscriptionStatus @default(ACTIVE)
+
+  // Billing-provider linkage (Stripe/etc.) — nullable until billing exists.
+  externalCustomerId String?   @map("external_customer_id")
+  currentPeriodEnd   DateTime? @map("current_period_end")
+  cancelAtPeriodEnd  Boolean   @default(false) @map("cancel_at_period_end")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tier])
+  @@map("subscriptions")
+}

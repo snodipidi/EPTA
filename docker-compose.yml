@@ -1,0 +1,104 @@
+# ─────────────────────────────────────────────────────────────
+# EPTA — local development orchestration.
+#
+#   docker compose up -d postgres redis      # just the infra
+#   docker compose up --build backend        # infra + API
+#   docker compose --profile storage up -d   # + MinIO (S3-compatible)
+#
+# The `minio` and future `python-*` services live behind compose
+# profiles so the default `up` stays lean.
+# ─────────────────────────────────────────────────────────────
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: epta-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-epta}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-epta_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-epta}
+    ports:
+      - "5432:5432"
+    volumes:
+      - epta_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-epta} -d ${POSTGRES_DB:-epta}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: epta-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - epta_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: epta-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-epta}:${POSTGRES_PASSWORD:-epta_dev_password}@postgres:5432/${POSTGRES_DB:-epta}?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev_access_secret_change_me}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-900s}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev_refresh_secret_change_me}
+      JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-30d}
+    ports:
+      - "3000:3000"
+    # Run migrations, then boot. Keeps schema in sync on every deploy.
+    command: sh -c "npx prisma migrate deploy && node dist/main"
+
+  # ── Object storage (S3-compatible). Enable with: --profile storage ──
+  minio:
+    image: minio/minio:latest
+    container_name: epta-minio
+    profiles: ["storage"]
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # web console
+    volumes:
+      - epta_miniodata:/data
+
+  # ── Future Python micro-services (recommendation / moderation /
+  #    analytics / search). Scaffolded here so the integration shape
+  #    is documented; uncomment & implement when ready.
+  #
+  # recommendation-service:
+  #   build: ./python-services/recommendation
+  #   profiles: ["python"]
+  #   environment:
+  #     DATABASE_URL: postgresql://epta:epta_dev_password@postgres:5432/epta
+  #     REDIS_URL: redis://redis:6379
+  #   depends_on: [postgres, redis]
+
+volumes:
+  epta_pgdata:
+  epta_redisdata:
+  epta_miniodata:
