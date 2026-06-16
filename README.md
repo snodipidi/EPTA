@@ -32,8 +32,9 @@ npm run dev
 - Backend API: `http://localhost:3000/api`
 - Swagger: `http://localhost:3000/api/docs`
 
-Чтобы фронтенд ходил в реальный API вместо моков — в `frontend/.env`:
+Чтобы фронтенд ходил в реальный API вместо моков — в `frontend/.env.local`:
 `VITE_USE_MOCK=false`. Демо-логин: `snodipidi@epta.dev` / `Password123!`.
+Подробнее — [docs/FRONTEND_INTEGRATION.md](./docs/FRONTEND_INTEGRATION.md).
 
 ---
 
@@ -47,19 +48,23 @@ npm run dev          # http://localhost:5173
 
 ```
 frontend/src/
-├── api/           # эндпоинты и клиент
+├── api/           # эндпоинты и HTTP-клиент (http.ts, tokenStore.ts, …)
+├── auth/          # AuthContext / useAuth
 ├── components/    # Header, Sidebar, Feed, PostCard, PostCreator, Icons
 ├── data/          # мок-данные
 ├── styles/        # variables.css (брейкпоинты), global.css
 └── types/         # TypeScript типы
 ```
 
-Переменные окружения (`frontend/.env`, скопировать из `.env.example`):
+Переменные окружения (`frontend/.env.local`, скопировать из `.env.example`):
 
 ```
 VITE_API_BASE_URL=http://localhost:3000/api
 VITE_USE_MOCK=true   # false — ходить в реальный backend
 ```
+
+`.env.local` не коммитится (попадает под `*.local` в `.gitignore`). Как именно
+фронт подключён к API — в [docs/FRONTEND_INTEGRATION.md](./docs/FRONTEND_INTEGRATION.md).
 
 ## Backend
 
@@ -75,6 +80,15 @@ media, notifications, chats, subscriptions, queues, health).
 
 ## Документация
 
-- [Архитектура и запуск backend](./backend/README.md)
-- [Брейкпоинты](./docs/BREAKPOINTS.md)
-- [API эндпоинты (frontend-контракт)](./docs/API.md)
+Backend:
+
+- [Запуск и архитектурные решения backend](./backend/README.md)
+- [Архитектура backend](./docs/ARCHITECTURE.md) — модули, жизненный цикл запроса, очереди, WebSocket
+- [Модель данных](./docs/DATABASE.md) — схема Prisma: сущности, enum'ы, связи
+- [Аутентификация и безопасность](./docs/AUTHENTICATION.md) — токены, ротация, роли
+- [API эндпоинты](./docs/API.md) — полный справочник REST
+
+Frontend:
+
+- [Интеграция фронтенда с backend](./docs/FRONTEND_INTEGRATION.md) — моки ⇄ API, клиент, что подключено
+- [Брейкпоинты](./docs/BREAKPOINTS.md) — адаптив десктопной вёрстки

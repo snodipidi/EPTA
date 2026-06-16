@@ -204,6 +204,14 @@ Python-сервисы и billing — заложены в схему сейчас
 `POST /posts/:id/repost`, `POST /posts/:id/bookmark`, плюс лидерборд
 `GET /profiles/top`.
 
+Подробная документация (в `../docs`):
+
+- [API.md](../docs/API.md) — полный справочник всех REST-эндпоинтов
+- [ARCHITECTURE.md](../docs/ARCHITECTURE.md) — модули, жизненный цикл запроса, сквозная инфраструктура
+- [DATABASE.md](../docs/DATABASE.md) — модель данных (Prisma)
+- [AUTHENTICATION.md](../docs/AUTHENTICATION.md) — токены, ротация, роли, безопасность
+- [FRONTEND_INTEGRATION.md](../docs/FRONTEND_INTEGRATION.md) — подключение SPA к API
+
 ---
 
 ## Очереди и Python-сервисы
