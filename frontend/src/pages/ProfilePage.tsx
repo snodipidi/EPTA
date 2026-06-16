@@ -1,23 +1,63 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { getPosts } from "../api/posts";
+import { getMyProfile } from "../api/profiles";
+import { USE_MOCK } from "../api/config";
 import { CURRENT_USER_ID, mockCurrentUser } from "../data/mockProfile";
+import { useAuth } from "../auth/AuthContext";
 import type { Post } from "../types/post";
+import type { UserProfile } from "../types/user";
 import { AvatarIcon } from "../components/icons/Icons";
 import { PostCard } from "../components/PostCard/PostCard";
 
 export function ProfilePage() {
+  const navigate = useNavigate();
+  const { isAuthenticated, logout } = useAuth();
+  const [profile, setProfile] = useState<UserProfile | null>(
+    USE_MOCK ? mockCurrentUser : null,
+  );
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // В реальном режиме профиль доступен только авторизованным.
   useEffect(() => {
-    getPosts()
-      .then((all) => all.filter((p) => p.author.id === CURRENT_USER_ID))
-      .then(setPosts)
-      .finally(() => setLoading(false));
-  }, []);
+    if (!USE_MOCK && !isAuthenticated) {
+      navigate("/login");
+    }
+  }, [isAuthenticated, navigate]);
 
-  const profile = mockCurrentUser;
+  useEffect(() => {
+    if (USE_MOCK) {
+      getPosts()
+        .then((all) => all.filter((p) => p.author.id === CURRENT_USER_ID))
+        .then(setPosts)
+        .finally(() => setLoading(false));
+      return;
+    }
+
+    if (!isAuthenticated) return;
+
+    Promise.all([getMyProfile(), getPosts()])
+      .then(([me, all]) => {
+        setProfile(me);
+        setPosts(all.filter((p) => p.author.id === me.id));
+      })
+      .catch(() => setProfile(null))
+      .finally(() => setLoading(false));
+  }, [isAuthenticated]);
+
+  async function handleLogout() {
+    await logout();
+    navigate("/login");
+  }
+
+  if (!profile) {
+    return (
+      <div className="profile-page">
+        <p className="profile-page__status">Загрузка...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="profile-page">
@@ -40,9 +80,19 @@ export function ProfilePage() {
           </div>
           <p className="profile-page__bio">{profile.bio}</p>
         </div>
-        <Link to="/login" className="profile-page__login">
-          войти
-        </Link>
+        {isAuthenticated ? (
+          <button
+            type="button"
+            className="profile-page__login"
+            onClick={handleLogout}
+          >
+            выйти
+          </button>
+        ) : (
+          <Link to="/login" className="profile-page__login">
+            войти
+          </Link>
+        )}
       </section>
 
       <section className="profile-page__posts">

@@ -30,4 +30,8 @@ export interface Post {
     authorName: string;
   };
   mediaPlaceholder?: boolean;
+  /** Контекст просмотра с бэкенда: лайкнул ли текущий пользователь пост. */
+  liked?: boolean;
+  /** Контекст просмотра: добавлен ли пост в закладки текущим пользователем. */
+  bookmarked?: boolean;
 }

@@ -1,19 +1,16 @@
-import { API_BASE_URL } from "./config";
+import { USE_MOCK } from "./config";
 import { ENDPOINTS } from "./endpoints";
+import { request } from "./http";
 import type { Post, PostCounters, PostImage } from "../types/post";
 import { mockPosts } from "../data/mockPosts";
 
-const USE_MOCK = import.meta.env.VITE_USE_MOCK !== "false";
-
-async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${url}`);
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
-  return res.json();
-}
+// ── Чтение ────────────────────────────────────────────────────────────────
+// Списочные эндпоинты бэкенда отдают массив в теле (курсор — в заголовках),
+// поэтому тип ответа совпадает с `Post[]` без распаковки.
 
 export async function getPosts(): Promise<Post[]> {
   if (USE_MOCK) return mockPosts;
-  return fetchJson<Post[]>(ENDPOINTS.posts);
+  return request<Post[]>(ENDPOINTS.posts);
 }
 
 export async function getPost(id: string): Promise<Post> {
@@ -22,7 +19,7 @@ export async function getPost(id: string): Promise<Post> {
     if (!post) throw new Error("Post not found");
     return post;
   }
-  return fetchJson<Post>(ENDPOINTS.post(id));
+  return request<Post>(ENDPOINTS.post(id));
 }
 
 export async function getPostImages(id: string): Promise<PostImage[]> {
@@ -30,7 +27,7 @@ export async function getPostImages(id: string): Promise<PostImage[]> {
     const post = mockPosts.find((p) => p.id === id);
     return post?.images ?? [];
   }
-  return fetchJson<PostImage[]>(ENDPOINTS.postImages(id));
+  return request<PostImage[]>(ENDPOINTS.postImages(id));
 }
 
 export async function getPostCounters(id: string): Promise<PostCounters> {
@@ -39,5 +36,35 @@ export async function getPostCounters(id: string): Promise<PostCounters> {
     if (!post) throw new Error("Post not found");
     return post.counters;
   }
-  return fetchJson<PostCounters>(ENDPOINTS.postCounters(id));
+  return request<PostCounters>(ENDPOINTS.postCounters(id));
+}
+
+// ── Запись (требует авторизации) ────────────────────────────────────────────
+
+export interface CreatePostPayload {
+  text: string;
+  hashtags?: string[];
+}
+
+export async function createPost(payload: CreatePostPayload): Promise<Post> {
+  return request<Post>(ENDPOINTS.createPost, {
+    method: "POST",
+    body: payload,
+  });
+}
+
+/** Состояние лайка после переключения (бэкенд `ReactionStateDto`). */
+export interface ReactionState {
+  liked: boolean;
+  likes: number;
+  type: string | null;
+}
+
+export async function toggleLike(id: string): Promise<ReactionState> {
+  return request<ReactionState>(ENDPOINTS.toggleLike(id), { method: "POST" });
+}
+
+/** Репост без цитаты возвращает созданный пост-репост. */
+export async function repost(id: string): Promise<Post> {
+  return request<Post>(ENDPOINTS.repost(id), { method: "POST", body: {} });
 }

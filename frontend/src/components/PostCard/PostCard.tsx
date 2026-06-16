@@ -1,5 +1,9 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { Post } from "../../types/post";
+import { repost as apiRepost, toggleLike } from "../../api/posts";
+import { USE_MOCK } from "../../api/config";
+import { useAuth } from "../../auth/AuthContext";
 import { CommentsModal } from "../CommentsModal/CommentsModal";
 import {
   AvatarIcon,
@@ -32,12 +36,69 @@ function formatTime(iso: string): string {
 
 export function PostCard({ post, onCommentCountChange }: PostCardProps) {
   const { author, text, hashtags, images, counters, createdAt, replyTo } = post;
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [commentCount, setCommentCount] = useState(counters.comments);
+
+  const [liked, setLiked] = useState<boolean>(post.liked ?? false);
+  const [likeCount, setLikeCount] = useState(counters.likes);
+  const [likePending, setLikePending] = useState(false);
+
+  const [repostCount, setRepostCount] = useState(counters.reposts);
+  const [repostPending, setRepostPending] = useState(false);
 
   const handleCommentAdded = () => {
     setCommentCount((n) => n + 1);
     onCommentCountChange?.(post.id, 1);
+  };
+
+  // Лайк/репост требуют авторизации. В мок-режиме просто переключаем локально.
+  const requireAuth = (): boolean => {
+    if (USE_MOCK || isAuthenticated) return true;
+    navigate("/login");
+    return false;
+  };
+
+  const handleToggleLike = async () => {
+    if (likePending || !requireAuth()) return;
+
+    if (USE_MOCK) {
+      setLiked((v) => !v);
+      setLikeCount((n) => n + (liked ? -1 : 1));
+      return;
+    }
+
+    setLikePending(true);
+    try {
+      const state = await toggleLike(post.id);
+      setLiked(state.liked);
+      setLikeCount(state.likes);
+    } catch {
+      // Не меняем состояние при ошибке — счётчик остаётся консистентным.
+    } finally {
+      setLikePending(false);
+    }
+  };
+
+  const handleRepost = async () => {
+    if (repostPending || !requireAuth()) return;
+
+    if (USE_MOCK) {
+      setRepostCount((n) => n + 1);
+      return;
+    }
+
+    setRepostPending(true);
+    try {
+      await apiRepost(post.id);
+      setRepostCount((n) => n + 1);
+    } catch {
+      // Игнорируем ошибку — счётчик не трогаем.
+    } finally {
+      setRepostPending(false);
+    }
   };
 
   return (
@@ -114,13 +175,26 @@ export function PostCard({ post, onCommentCountChange }: PostCardProps) {
               <CommentIcon />
               <span>{commentCount}</span>
             </button>
-            <button type="button" className="post-card__action" aria-label="Репосты">
+            <button
+              type="button"
+              className="post-card__action"
+              aria-label="Репост"
+              onClick={handleRepost}
+              disabled={repostPending}
+            >
               <RepostIcon />
-              <span>{counters.reposts}</span>
+              <span>{repostCount}</span>
             </button>
-            <button type="button" className="post-card__action" aria-label="Лайки">
+            <button
+              type="button"
+              className={`post-card__action${liked ? " post-card__action--active" : ""}`}
+              aria-label="Лайк"
+              aria-pressed={liked}
+              onClick={handleToggleLike}
+              disabled={likePending}
+            >
               <HeartIcon />
-              <span>{counters.likes}</span>
+              <span>{likeCount}</span>
             </button>
           </div>
           <div className="post-card__actions-right">

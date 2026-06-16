@@ -2,19 +2,28 @@ import { useRef, useState } from "react";
 import { AvatarIcon, ImageUploadIcon } from "../icons/Icons";
 
 interface PostCreatorProps {
-  onSubmit: (text: string) => void;
+  /** Может быть асинхронным (реальная публикация на бэкенд). */
+  onSubmit: (text: string) => void | Promise<void>;
 }
 
 export function PostCreator({ onSubmit }: PostCreatorProps) {
   const [text, setText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = text.trim();
-    if (!trimmed) return;
-    onSubmit(trimmed);
-    setText("");
+    if (!trimmed || submitting) return;
+    setSubmitting(true);
+    try {
+      await onSubmit(trimmed);
+      setText(""); // чистим поле только при успехе
+    } catch {
+      // Текст сохраняем, чтобы пользователь не потерял ввод и мог повторить.
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -53,9 +62,9 @@ export function PostCreator({ onSubmit }: PostCreatorProps) {
           <button
             type="submit"
             className="post-creator__submit"
-            disabled={!text.trim()}
+            disabled={!text.trim() || submitting}
           >
-            Отправить
+            {submitting ? "..." : "Отправить"}
           </button>
         </div>
       </div>

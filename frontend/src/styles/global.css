@@ -537,6 +537,19 @@ img {
   opacity: 0.6;
 }
 
+.post-card__action--active {
+  text-shadow: var(--glow-text);
+}
+
+.post-card__action--active svg {
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.55));
+}
+
+.post-card__action:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 /* ── Stub page ── */
 
 .stub-page {
@@ -827,6 +840,8 @@ img {
   font-size: var(--font-size-sm);
   font-weight: 600;
   color: #ffffff;
+  background: transparent;
+  cursor: pointer;
   box-shadow: var(--glow-box);
   transition: opacity 0.15s;
 }
@@ -971,6 +986,23 @@ img {
 .auth-page__btn--primary {
   color: #ffffff;
   box-shadow: var(--glow-box);
+}
+
+.auth-page__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.auth-page__error {
+  width: 100%;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e5484d;
+  border-radius: var(--radius-sm);
+  color: #ff9ea0;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  text-align: center;
 }
 
 .auth-page__divider {

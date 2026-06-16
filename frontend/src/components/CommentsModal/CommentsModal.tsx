@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { Comment } from "../../types/comment";
 import type { Post } from "../../types/post";
+import { createComment, getComments } from "../../api/comments";
+import { USE_MOCK } from "../../api/config";
 import { getCommentsForPost } from "../../data/mockComments";
 import { mockCurrentUser } from "../../data/mockProfile";
+import { useAuth } from "../../auth/AuthContext";
 import { AvatarIcon, CloseIcon } from "../icons/Icons";
 
 interface CommentsModalProps {
@@ -25,8 +29,14 @@ function formatTime(iso: string): string {
 }
 
 export function CommentsModal({ post, onClose, onCommentAdded }: CommentsModalProps) {
-  const [comments, setComments] = useState<Comment[]>(() => getCommentsForPost(post.id));
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+  const [comments, setComments] = useState<Comment[]>(() =>
+    USE_MOCK ? getCommentsForPost(post.id) : [],
+  );
+  const [loading, setLoading] = useState(!USE_MOCK);
   const [text, setText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -40,26 +50,66 @@ export function CommentsModal({ post, onClose, onCommentAdded }: CommentsModalPr
     };
   }, [onClose]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Реальный режим: подгружаем комментарии с бэкенда при открытии.
+  useEffect(() => {
+    if (USE_MOCK) return;
+    let active = true;
+    getComments(post.id)
+      .then((list) => {
+        if (active) setComments(list);
+      })
+      .catch(() => {
+        if (active) setComments([]);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [post.id]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = text.trim();
-    if (!trimmed) return;
+    if (!trimmed || submitting) return;
 
-    const newComment: Comment = {
-      id: `c-${Date.now()}`,
-      postId: post.id,
-      author: {
-        id: mockCurrentUser.id,
-        displayName: mockCurrentUser.displayName,
-        username: mockCurrentUser.username,
-      },
-      text: trimmed,
-      createdAt: new Date().toISOString(),
-    };
+    if (USE_MOCK) {
+      const newComment: Comment = {
+        id: `c-${Date.now()}`,
+        postId: post.id,
+        author: {
+          id: mockCurrentUser.id,
+          displayName: mockCurrentUser.displayName,
+          username: mockCurrentUser.username,
+        },
+        text: trimmed,
+        createdAt: new Date().toISOString(),
+      };
+      setComments((prev) => [...prev, newComment]);
+      setText("");
+      onCommentAdded?.(post.id);
+      return;
+    }
 
-    setComments((prev) => [...prev, newComment]);
-    setText("");
-    onCommentAdded?.(post.id);
+    // Комментировать может только авторизованный пользователь.
+    if (!isAuthenticated) {
+      onClose();
+      navigate("/login");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const created = await createComment(post.id, trimmed);
+      setComments((prev) => [...prev, created]);
+      setText("");
+      onCommentAdded?.(post.id);
+    } catch {
+      // Сохраняем введённый текст, чтобы пользователь мог повторить.
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -86,7 +136,9 @@ export function CommentsModal({ post, onClose, onCommentAdded }: CommentsModalPr
         </div>
 
         <ul className="comments-modal__list">
-          {comments.length === 0 ? (
+          {loading ? (
+            <li className="comments-modal__empty">Загрузка...</li>
+          ) : comments.length === 0 ? (
             <li className="comments-modal__empty">Пока нет комментариев</li>
           ) : (
             comments.map((comment) => (
@@ -119,8 +171,12 @@ export function CommentsModal({ post, onClose, onCommentAdded }: CommentsModalPr
             onChange={(e) => setText(e.target.value)}
             aria-label="Новый комментарий"
           />
-          <button type="submit" className="comments-modal__submit" disabled={!text.trim()}>
-            Отправить
+          <button
+            type="submit"
+            className="comments-modal__submit"
+            disabled={!text.trim() || submitting}
+          >
+            {submitting ? "..." : "Отправить"}
           </button>
         </form>
       </div>

@@ -5,6 +5,20 @@
  */
 
 export const ENDPOINTS = {
+  // ── auth ────────────────────────────────────────────────
+  /** POST — регистрация */
+  register: "/auth/register",
+
+  /** POST — вход */
+  login: "/auth/login",
+
+  /** POST — обмен refresh-токена на новую пару */
+  refresh: "/auth/refresh",
+
+  /** POST — выход (отзыв одного refresh-токена) */
+  logout: "/auth/logout",
+
+  // ── posts ───────────────────────────────────────────────
   /** GET — список постов ленты */
   posts: "/posts",
 
@@ -28,4 +42,18 @@ export const ENDPOINTS = {
 
   /** POST — закладка */
   bookmark: (id: string) => `/posts/${id}/bookmark`,
+
+  // ── comments ────────────────────────────────────────────
+  /** GET — комментарии поста / POST — добавить комментарий */
+  postComments: (id: string) => `/posts/${id}/comments`,
+
+  // ── profiles ────────────────────────────────────────────
+  /** GET — мой профиль */
+  myProfile: "/profiles/me",
+
+  /** GET — публичный профиль по username */
+  profile: (username: string) => `/profiles/${username}`,
+
+  /** GET — лидерборд («Топы») */
+  topProfiles: "/profiles/top",
 } as const;
