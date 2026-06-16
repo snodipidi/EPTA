@@ -13,37 +13,44 @@ EPTA/
 
 ---
 
-## Быстрый старт (полный стек)
+## Быстрый старт
+
+Всё запускается из `frontend/` через `npm` — Docker-команды backend обёрнуты в
+скрипты, помнить `docker compose` не нужно.
 
 ```bash
-# 1. Поднять Postgres + Redis + backend (миграции применятся автоматически)
-docker compose up --build backend
-
-# 2. Засеять демо-данными (совпадают с мок-данными фронтенда)
-docker compose exec backend npm run db:seed:prod
-
-# 3. Запустить фронтенд
 cd frontend
 npm install
-npm run dev
+
+# только UI на моках (Docker не нужен):
+npm run dev:mock          # http://localhost:5173
+
+# или полный стек против реального API:
+npm run backend           # backend + postgres + redis в Docker (фон)
+npm run seed              # один раз: демо-данные
+npm run dev               # http://localhost:5173 (ходит в API)
 ```
 
 - Frontend: `http://localhost:5173`
 - Backend API: `http://localhost:3000/api`
 - Swagger: `http://localhost:3000/api/docs`
 
-Чтобы фронтенд ходил в реальный API вместо моков — в `frontend/.env.local`:
-`VITE_USE_MOCK=false`. Демо-логин: `snodipidi@epta.dev` / `Password123!`.
-Подробнее — [docs/FRONTEND_INTEGRATION.md](./docs/FRONTEND_INTEGRATION.md).
+Демо-логин: `snodipidi@epta.dev` / `Password123!`. Режим mock/real задаёт сам
+скрипт (`dev:mock` vs `dev`). Подробнее —
+[frontend/README.md](./frontend/README.md) и
+[docs/FRONTEND_INTEGRATION.md](./docs/FRONTEND_INTEGRATION.md).
 
 ---
 
 ## Frontend
 
+Все команды и подробности — [frontend/README.md](./frontend/README.md).
+
 ```bash
 cd frontend
 npm install
-npm run dev          # http://localhost:5173
+npm run dev:mock     # UI на моках, http://localhost:5173
+npm run dev          # против реального API (предварительно `npm run backend`)
 ```
 
 ```
@@ -56,15 +63,10 @@ frontend/src/
 └── types/         # TypeScript типы
 ```
 
-Переменные окружения (`frontend/.env.local`, скопировать из `.env.example`):
-
-```
-VITE_API_BASE_URL=http://localhost:3000/api
-VITE_USE_MOCK=true   # false — ходить в реальный backend
-```
-
-`.env.local` не коммитится (попадает под `*.local` в `.gitignore`). Как именно
-фронт подключён к API — в [docs/FRONTEND_INTEGRATION.md](./docs/FRONTEND_INTEGRATION.md).
+Режим mock/real задаёт сам скрипт (`dev:mock` vs `dev`). Файл
+`frontend/.env.local` (не коммитится, попадает под `*.local` в `.gitignore`)
+нужен лишь для оверрайдов вроде `VITE_API_BASE_URL`. Как фронт подключён к API —
+в [docs/FRONTEND_INTEGRATION.md](./docs/FRONTEND_INTEGRATION.md).
 
 ## Backend
 
@@ -90,5 +92,6 @@ Backend:
 
 Frontend:
 
+- [Запуск фронтенда (npm-команды)](./frontend/README.md) — установка, dev/dev:mock, backend, seed
 - [Интеграция фронтенда с backend](./docs/FRONTEND_INTEGRATION.md) — моки ⇄ API, клиент, что подключено
 - [Брейкпоинты](./docs/BREAKPOINTS.md) — адаптив десктопной вёрстки

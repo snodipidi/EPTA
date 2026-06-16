@@ -10,13 +10,11 @@
 
 ## Переключатель: моки ⇄ реальный API
 
-Источник данных управляется переменной окружения. Файл `frontend/.env.local`
-(в git **не** попадает — подходит под `*.local` в `.gitignore`):
+Источник данных управляется переменной `VITE_USE_MOCK`. Проще всего — через
+npm-скрипты, которые сами её выставляют (см. [Локальный запуск](#локальный-запуск)):
 
-```env
-VITE_API_BASE_URL=http://localhost:3000/api
-VITE_USE_MOCK=false      # true — рендерить из src/data/* без сети
-```
+- `npm run dev:mock` → `VITE_USE_MOCK=true` — рендер из `src/data/*` без сети;
+- `npm run dev` → `VITE_USE_MOCK=false` — запросы в реальный API.
 
 В коде флаг реэкспортируется из `src/api/config.ts`:
 
@@ -27,6 +25,16 @@ export const USE_MOCK = import.meta.env.VITE_USE_MOCK !== "false";
 Каждый api-метод и завязанный на данные компонент ветвится на `USE_MOCK`:
 `true` → мок-данные из `src/data/`, `false` → запрос в API. Значение по
 умолчанию (если переменной нет) — **моки** (безопасно для офлайн-разработки).
+
+Файл `frontend/.env.local` (в git **не** попадает — подходит под `*.local`)
+нужен только для личных оверрайдов, например другого адреса API:
+
+```env
+VITE_API_BASE_URL=http://localhost:3000/api
+```
+
+> Inline-переменная из npm-скрипта имеет в Vite высший приоритет, поэтому
+> `dev` / `dev:mock` задают режим независимо от содержимого `.env.local`.
 
 ---
 
@@ -123,16 +131,24 @@ export const USE_MOCK = import.meta.env.VITE_USE_MOCK !== "false";
 
 ## Локальный запуск
 
-```bash
-# 1. backend + инфраструктура (из корня репозитория)
-docker compose up --build backend
-docker compose exec backend npm run db:seed:prod   # демо-данные
+Всё запускается из каталога `frontend/` (подробнее —
+[frontend/README.md](../frontend/README.md)).
 
-# 2. фронтенд
+```bash
 cd frontend
 npm install
-# создать .env.local с VITE_USE_MOCK=false (см. выше)
-npm run dev        # http://localhost:5173
+
+# Вариант 1 — только UI на моках (Docker не нужен):
+npm run dev:mock        # http://localhost:5173
+
+# Вариант 2 — против реального API:
+npm run backend         # терминал 1: backend + postgres + redis в Docker
+npm run seed            # один раз: демо-данные
+npm run dev             # терминал 2: http://localhost:5173 (ходит в API)
 ```
 
 Демо-логин после сидинга: `snodipidi@epta.dev` / `Password123!`.
+
+Вспомогательное: `npm run backend:logs` (логи API), `npm run backend:stop`
+(погасить стек), `npm run backend:build` (пересобрать образ после изменений в
+`backend/`).

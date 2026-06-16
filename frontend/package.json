@@ -4,10 +4,16 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "cross-env VITE_USE_MOCK=false vite",
+    "dev:mock": "cross-env VITE_USE_MOCK=true vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "backend": "docker compose -p epta -f ../docker-compose.yml up -d backend",
+    "backend:build": "docker compose -p epta -f ../docker-compose.yml up -d --build backend",
+    "backend:logs": "docker compose -p epta -f ../docker-compose.yml logs -f backend",
+    "backend:stop": "docker compose -p epta -f ../docker-compose.yml stop",
+    "seed": "docker compose -p epta -f ../docker-compose.yml exec backend npm run db:seed:prod"
   },
   "dependencies": {
     "react": "^19.2.6",
@@ -20,6 +26,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "cross-env": "^10.1.0",
     "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
