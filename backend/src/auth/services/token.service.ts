@@ -125,6 +125,7 @@ export class TokenService {
       email: user.email,
       username: user.username,
       role: user.role,
+      emailVerified: user.emailVerifiedAt !== null,
     };
     const refreshPayload: RefreshTokenPayload = { sub: user.id, jti, family };
 

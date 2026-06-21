@@ -21,15 +21,17 @@ export class UpdateProfileDto {
   @MaxLength(280)
   bio?: string;
 
-  @ApiPropertyOptional({ description: 'Avatar media URL' })
+  @ApiPropertyOptional({ description: 'Avatar media URL (http/https only)' })
   @IsOptional()
-  @IsString()
+  // Must be an absolute http(s) URL. Rejects `javascript:`/`data:` and other
+  // schemes so a stored value can never become a script-bearing link.
+  @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
   @MaxLength(500)
   avatarUrl?: string;
 
-  @ApiPropertyOptional({ description: 'Cover media URL' })
+  @ApiPropertyOptional({ description: 'Cover media URL (http/https only)' })
   @IsOptional()
-  @IsString()
+  @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
   @MaxLength(500)
   coverUrl?: string;
 
@@ -41,7 +43,7 @@ export class UpdateProfileDto {
 
   @ApiPropertyOptional({ example: 'https://epta.dev' })
   @IsOptional()
-  @IsUrl()
+  @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
   @MaxLength(200)
   website?: string;
 }

@@ -87,6 +87,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
         email: payload.email,
         username: payload.username,
         role: payload.role,
+        emailVerified: payload.emailVerified,
       };
       void client.join(this.userRoom(payload.sub));
       this.logger.debug(`Socket connected: ${payload.username}`);

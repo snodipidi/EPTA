@@ -15,12 +15,15 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from '../common';
 import { ReactionStateDto, SetReactionDto } from './dto/reaction.dto';
 import { ReactionsService } from './reactions.service';
 
 @ApiTags('reactions')
 @ApiBearerAuth('access-token')
+// Reactions are toggled frequently; cap per-minute to blunt automated abuse.
+@Throttle({ default: { limit: 60, ttl: 60_000 } })
 @Controller('posts/:postId')
 export class ReactionsController {
   constructor(private readonly reactions: ReactionsService) {}

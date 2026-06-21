@@ -68,6 +68,55 @@ export class EnvironmentVariables {
   @IsOptional()
   JWT_REFRESH_TTL = '30d';
 
+  // ── Auth flow (email verification + OAuth redirect target) ──
+  @IsString()
+  @IsOptional()
+  FRONTEND_URL = 'http://localhost:5173';
+
+  @Type(() => Number)
+  @IsInt()
+  @IsOptional()
+  EMAIL_CODE_TTL = 900;
+
+  // ── Google OAuth (blank = sign-in disabled) ──
+  @IsString()
+  @IsOptional()
+  GOOGLE_CLIENT_ID?: string;
+
+  @IsString()
+  @IsOptional()
+  GOOGLE_CLIENT_SECRET?: string;
+
+  @IsString()
+  @IsOptional()
+  GOOGLE_CALLBACK_URL?: string;
+
+  // ── Mail / SMTP (blank = dev console transport) ──
+  @IsString()
+  @IsOptional()
+  MAIL_FROM?: string;
+
+  @IsString()
+  @IsOptional()
+  SMTP_HOST?: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @IsOptional()
+  SMTP_PORT = 587;
+
+  @IsString()
+  @IsOptional()
+  SMTP_SECURE?: string;
+
+  @IsString()
+  @IsOptional()
+  SMTP_USER?: string;
+
+  @IsString()
+  @IsOptional()
+  SMTP_PASS?: string;
+
   // ── Throttling ──
   @Type(() => Number)
   @IsInt()

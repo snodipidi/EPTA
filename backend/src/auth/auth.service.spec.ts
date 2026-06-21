@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import { Prisma, UserStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthService } from './auth.service';
+import { EmailVerificationService } from './services/email-verification.service';
 import { PasswordService } from './services/password.service';
 import { TokenService } from './services/token.service';
 
@@ -13,6 +14,7 @@ describe('AuthService', () => {
   let prisma: { user: { create: jest.Mock; findUnique: jest.Mock } };
   let passwords: { hash: jest.Mock; verify: jest.Mock };
   let tokens: { issuePair: jest.Mock };
+  let emailVerification: { issue: jest.Mock };
 
   const pair = { accessToken: 'a', refreshToken: 'r', expiresIn: 900 };
 
@@ -22,6 +24,7 @@ describe('AuthService', () => {
     };
     passwords = { hash: jest.fn(), verify: jest.fn() };
     tokens = { issuePair: jest.fn().mockResolvedValue(pair) };
+    emailVerification = { issue: jest.fn().mockResolvedValue(undefined) };
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -29,6 +32,7 @@ describe('AuthService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: PasswordService, useValue: passwords },
         { provide: TokenService, useValue: tokens },
+        { provide: EmailVerificationService, useValue: emailVerification },
       ],
     }).compile();
 
@@ -92,11 +96,15 @@ describe('AuthService', () => {
   });
 
   describe('login', () => {
-    it('rejects an unknown email without leaking which field failed', async () => {
+    it('rejects an unknown email but still runs a password verify (no timing leak)', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
+      passwords.verify.mockResolvedValue(false);
       await expect(
         service.login({ email: 'x@epta.dev', password: 'nope' }, ctx),
       ).rejects.toBeInstanceOf(UnauthorizedException);
+      // Verify must run even with no user — the dummy-hash path keeps the
+      // response time uniform so registered emails can't be enumerated.
+      expect(passwords.verify).toHaveBeenCalledWith(null, 'nope');
     });
 
     it('rejects a wrong password', async () => {

@@ -63,8 +63,3 @@ export interface ReactionState {
 export async function toggleLike(id: string): Promise<ReactionState> {
   return request<ReactionState>(ENDPOINTS.toggleLike(id), { method: "POST" });
 }
-
-/** Репост без цитаты возвращает созданный пост-репост. */
-export async function repost(id: string): Promise<Post> {
-  return request<Post>(ENDPOINTS.repost(id), { method: "POST", body: {} });
-}

@@ -7,10 +7,11 @@ import { useAuth } from "../../auth/AuthContext";
 import type { Post } from "../../types/post";
 import { PostCard } from "../PostCard/PostCard";
 import { PostCreator } from "../PostCreator/PostCreator";
+import { VerifyEmailBanner } from "../VerifyEmailBanner/VerifyEmailBanner";
 
 export function Feed() {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -39,9 +40,14 @@ export function Feed() {
       return;
     }
 
-    // Реальный режим: публиковать может только авторизованный пользователь.
+    // Реальный режим: публиковать может только авторизованный пользователь...
     if (!isAuthenticated) {
       navigate("/login");
+      return;
+    }
+    // ...и только с подтверждённой почтой (бэкенд иначе вернёт 403).
+    if (!user?.emailVerified) {
+      navigate("/verify-email");
       return;
     }
     const created = await createPost({ text });
@@ -50,6 +56,7 @@ export function Feed() {
 
   return (
     <main className="feed">
+      <VerifyEmailBanner />
       <PostCreator onSubmit={handleCreatePost} />
 
       {loading ? (

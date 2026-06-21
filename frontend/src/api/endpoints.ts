@@ -18,6 +18,18 @@ export const ENDPOINTS = {
   /** POST — выход (отзыв одного refresh-токена) */
   logout: "/auth/logout",
 
+  /** GET — текущий пользователь (для восстановления сессии) */
+  me: "/auth/me",
+
+  /** POST — подтвердить почту 6-значным кодом */
+  verifyEmail: "/auth/verify-email",
+
+  /** POST — повторно отправить код подтверждения */
+  resendCode: "/auth/resend-code",
+
+  /** GET — начать вход через Google (редирект на Google) */
+  google: "/auth/google",
+
   // ── posts ───────────────────────────────────────────────
   /** GET — список постов ленты */
   posts: "/posts",
@@ -36,9 +48,6 @@ export const ENDPOINTS = {
 
   /** POST — лайк/анлайк */
   toggleLike: (id: string) => `/posts/${id}/like`,
-
-  /** POST — репост */
-  repost: (id: string) => `/posts/${id}/repost`,
 
   /** POST — закладка */
   bookmark: (id: string) => `/posts/${id}/bookmark`,

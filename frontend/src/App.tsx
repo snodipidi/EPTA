@@ -1,16 +1,20 @@
 import { Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout/Layout";
+import { AuthCallbackPage } from "./pages/AuthCallbackPage";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { StubPage } from "./pages/StubPage";
+import { VerifyEmailPage } from "./pages/VerifyEmailPage";
 
 function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route
         path="/*"
         element={

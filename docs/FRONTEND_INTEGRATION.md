@@ -46,8 +46,8 @@ VITE_API_BASE_URL=http://localhost:3000/api
 | `endpoints.ts` | константы путей (`/auth/login`, `/posts/:id/like`, …) |
 | `http.ts` | общий fetch-клиент: версия, токен, refresh-on-401, ошибки |
 | `tokenStore.ts` | access/refresh/user в localStorage |
-| `auth.ts` | `login`, `register`, `logout` |
-| `posts.ts` | `getPosts`, `getPost`, `createPost`, `toggleLike`, `repost` |
+| `auth.ts` | `login`, `register`, `logout`, `getMe`, `verifyEmail`, `resendCode` |
+| `posts.ts` | `getPosts`, `getPost`, `createPost`, `toggleLike` |
 | `comments.ts` | `getComments`, `createComment` |
 | `profiles.ts` | `getMyProfile`, `getProfileByUsername` |
 
@@ -91,23 +91,47 @@ VITE_API_BASE_URL=http://localhost:3000/api
 |---|---|---|
 | Регистрация | `POST /auth/register` | `RegisterPage` |
 | Вход | `POST /auth/login` | `LoginPage` |
+| Вход через Google | `GET /auth/google` → `/auth/callback` | `LoginPage`/`RegisterPage` → `AuthCallbackPage` |
+| Подтверждение почты | `POST /auth/verify-email`, `POST /auth/resend-code` | `VerifyEmailPage`, `VerifyEmailBanner` |
+| Восстановление сессии | `GET /auth/me` | `AuthContext` (на старте) |
 | Выход | `POST /auth/logout` | `ProfilePage` |
 | Обновление токенов | `POST /auth/refresh` | `http.ts` (авто, на 401) |
 | Лента | `GET /posts` | `Feed` |
 | Создание поста | `POST /posts` | `PostCreator` → `Feed` |
 | Лайк | `POST /posts/:id/like` | `PostCard` |
-| Репост | `POST /posts/:id/repost` | `PostCard` |
 | Комментарии (чтение) | `GET /posts/:id/comments` | `CommentsModal` |
 | Комментарий (создание) | `POST /posts/:id/comments` | `CommentsModal` |
 | Мой профиль | `GET /profiles/me` | `ProfilePage` |
 
 ---
 
+## Аутентификация: верификация, Google, сессия
+
+- **Подтверждение почты.** После регистрации почта не подтверждена и фронт ведёт
+  на `/verify-email` (ввод 6-значного кода). До подтверждения действия записи
+  заблокированы и в UI (`Feed`/`CommentsModal` уводят на `/verify-email`), и на
+  бэке (`403`). Напоминание показывает `VerifyEmailBanner` (в ленте и профиле).
+  Флаг — `user.emailVerified` из `AuthUser`.
+- **Вход через Google.** Кнопка уводит браузер на `GET /auth/google` (серверный
+  redirect-флоу). Бэкенд возвращает на `/auth/callback` с токенами во фрагменте
+  URL — `AuthCallbackPage` сохраняет сессию и тянет `GET /auth/me`. Если на
+  сервере нет Google-кредов — эндпоинт отдаёт `503`.
+- **Сессия на устройстве.** `AuthContext` на старте валидирует токен через
+  `GET /auth/me` (при `401` — авто-`refresh`), поэтому повторно входить не нужно,
+  пока жив refresh-токен (30 дней). Флаг `bootstrapping` блокирует
+  преждевременные редиректы на `/login`.
+
+---
+
 ## Что пока на моках/заглушках
 
-Вне объёма текущей интеграции (UI есть частично или нет): Google OAuth (нет
-эндпоинта), загрузка изображений (`POST /media`), закладки, подписки/фолловы,
-чаты, уведомления, «Топы», поиск, настройки тарифов.
+Вне объёма текущей интеграции (UI есть частично или нет): загрузка изображений
+(`POST /media`), закладки, подписки/фолловы, чаты, уведомления, «Топы», поиск,
+настройки тарифов.
+
+> **Репост** намеренно не ходит в бэкенд: кнопка работает как лайк — локальный
+> тоггл со счётчиком, настоящий пост-репост в ленте не создаётся. Эндпоинт
+> `POST /posts/:id/repost` на бэке остаётся, но фронтом не вызывается.
 
 > В форме регистрации нет поля «отображаемое имя» → `displayName`
 > подставляется из `username`.

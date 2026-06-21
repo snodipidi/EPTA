@@ -18,6 +18,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import {
   CurrentUser,
   CursorPaginationDto,
@@ -111,6 +112,8 @@ export class PostsController {
 
   @ApiBearerAuth('access-token')
   @Post()
+  // Curb spam posting beyond the global limit.
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({ summary: 'Create a post' })
   @ApiOkResponse({ type: PostResponseDto })
   create(
@@ -122,6 +125,7 @@ export class PostsController {
 
   @ApiBearerAuth('access-token')
   @Post(':id/repost')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({ summary: 'Repost or quote a post' })
   @ApiOkResponse({ type: PostResponseDto })
   repost(
@@ -134,6 +138,8 @@ export class PostsController {
 
   @ApiBearerAuth('access-token')
   @Post(':id/comments')
+  // Comments are higher-frequency than posts but still worth bounding.
+  @Throttle({ default: { limit: 40, ttl: 60_000 } })
   @ApiOperation({ summary: 'Comment on a post' })
   @ApiOkResponse({ type: CommentResponseDto })
   comment(

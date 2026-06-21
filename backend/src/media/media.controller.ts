@@ -8,6 +8,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -27,6 +28,8 @@ export class MediaController {
   constructor(private readonly media: MediaService) {}
 
   @Post()
+  // Tighter limit than the global throttle: uploads are heavy (disk + bandwidth).
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   // Memory storage — buffer is handed to StorageService. 10 MiB hard cap at the
   // multer layer as a first line of defence before our own validation.
   @UseInterceptors(

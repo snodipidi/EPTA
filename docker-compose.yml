@@ -65,6 +65,21 @@ services:
       JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-900s}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev_refresh_secret_change_me}
       JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-30d}
+      # ── Auth flow: where to redirect the browser back after OAuth, and the
+      #    email-verification code lifetime (seconds). ──
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      EMAIL_CODE_TTL: ${EMAIL_CODE_TTL:-900}
+      # ── Google OAuth (blank = Google sign-in disabled, app still boots). ──
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-http://localhost:3000/api/auth/google/callback}
+      # ── Mail / SMTP (blank = dev transport: codes are written to the logs). ──
+      MAIL_FROM: ${MAIL_FROM:-EPTA <no-reply@epta.dev>}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
     ports:
       - "3000:3000"
     # Run migrations, then boot. Keeps schema in sync on every deploy.

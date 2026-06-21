@@ -5,6 +5,8 @@ import { GoogleAuthButton } from "../components/Auth/GoogleAuthButton";
 import { AuthLayout } from "../components/AuthLayout/AuthLayout";
 import { useAuth } from "../auth/AuthContext";
 import { ApiError } from "../api/http";
+import { API_BASE_URL } from "../api/config";
+import { ENDPOINTS } from "../api/endpoints";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -32,7 +34,9 @@ export function LoginPage() {
   }
 
   function handleGoogleLogin() {
-    // OAuth — TBD (нет эндпоинта на бэкенде)
+    // Серверный redirect-флоу: уводим браузер на бэкенд, тот — в Google и обратно
+    // на /auth/callback с токенами.
+    window.location.href = `${API_BASE_URL}${ENDPOINTS.google}`;
   }
 
   return (

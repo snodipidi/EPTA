@@ -5,6 +5,8 @@ export interface AuthUser {
   username: string;
   displayName: string;
   role: "USER" | "MODERATOR" | "ADMIN" | "OWNER";
+  /** Подтверждена ли почта. Без подтверждения запись (посты/правки) недоступна. */
+  emailVerified: boolean;
 }
 
 /** Ответ эндпоинтов /auth/login, /auth/register, /auth/refresh. */

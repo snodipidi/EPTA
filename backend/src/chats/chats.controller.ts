@@ -15,6 +15,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { CurrentUser, CursorPaginationDto } from '../common';
 import { PaginatedResult } from '../common/dto/pagination.dto';
 import { ChatsService } from './chats.service';
@@ -44,6 +45,8 @@ export class ChatsController {
   }
 
   @Post('direct')
+  // Creating chats is rarer than messaging; keep this tight.
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Open (or get) a direct chat with a user' })
   @ApiOkResponse({ type: ChatResponseDto })
   direct(
@@ -54,6 +57,7 @@ export class ChatsController {
   }
 
   @Post('group')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Create a group chat' })
   @ApiOkResponse({ type: ChatResponseDto })
   group(
@@ -78,6 +82,7 @@ export class ChatsController {
   }
 
   @Post(':id/messages')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @ApiOperation({ summary: 'Send a message (REST fallback for ChatGateway)' })
   @ApiOkResponse({ type: ChatMessageResponseDto })
   send(

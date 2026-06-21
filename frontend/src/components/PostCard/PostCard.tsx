@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Post } from "../../types/post";
-import { repost as apiRepost, toggleLike } from "../../api/posts";
+import { toggleLike } from "../../api/posts";
 import { USE_MOCK } from "../../api/config";
 import { useAuth } from "../../auth/AuthContext";
 import { CommentsModal } from "../CommentsModal/CommentsModal";
@@ -46,8 +46,8 @@ export function PostCard({ post, onCommentCountChange }: PostCardProps) {
   const [likeCount, setLikeCount] = useState(counters.likes);
   const [likePending, setLikePending] = useState(false);
 
+  const [reposted, setReposted] = useState<boolean>(false);
   const [repostCount, setRepostCount] = useState(counters.reposts);
-  const [repostPending, setRepostPending] = useState(false);
 
   const handleCommentAdded = () => {
     setCommentCount((n) => n + 1);
@@ -82,23 +82,12 @@ export function PostCard({ post, onCommentCountChange }: PostCardProps) {
     }
   };
 
-  const handleRepost = async () => {
-    if (repostPending || !requireAuth()) return;
-
-    if (USE_MOCK) {
-      setRepostCount((n) => n + 1);
-      return;
-    }
-
-    setRepostPending(true);
-    try {
-      await apiRepost(post.id);
-      setRepostCount((n) => n + 1);
-    } catch {
-      // Игнорируем ошибку — счётчик не трогаем.
-    } finally {
-      setRepostPending(false);
-    }
+  // Репост работает как лайк: локальный тоггл со счётчиком, без обращения к API
+  // и без создания настоящего репоста в ленте.
+  const handleRepost = () => {
+    if (!requireAuth()) return;
+    setReposted((v) => !v);
+    setRepostCount((n) => n + (reposted ? -1 : 1));
   };
 
   return (
@@ -177,10 +166,10 @@ export function PostCard({ post, onCommentCountChange }: PostCardProps) {
             </button>
             <button
               type="button"
-              className="post-card__action"
+              className={`post-card__action${reposted ? " post-card__action--active" : ""}`}
               aria-label="Репост"
+              aria-pressed={reposted}
               onClick={handleRepost}
-              disabled={repostPending}
             >
               <RepostIcon />
               <span>{repostCount}</span>

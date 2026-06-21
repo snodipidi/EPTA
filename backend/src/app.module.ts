@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { BookmarksModule } from './bookmarks/bookmarks.module';
 import { ChatsModule } from './chats/chats.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { EmailVerifiedGuard } from './common/guards/email-verified.guard';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { PaginationInterceptor } from './common/interceptors/pagination.interceptor';
@@ -80,10 +81,12 @@ import { UsersModule } from './users/users.module';
     HealthModule,
   ],
   providers: [
-    // Order matters: authenticate, then throttle, then authorize by role.
+    // Order matters: authenticate, then throttle, then authorize by role, then
+    // require a verified email for state-changing requests.
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: EmailVerifiedGuard },
     // Unwraps PaginatedResult → array body + pagination headers.
     { provide: APP_INTERCEPTOR, useClass: PaginationInterceptor },
     // Belt-and-suspenders: the filter is also registered in main.ts; here it

@@ -10,6 +10,9 @@
 
 - [Модель токенов](#модель-токенов)
 - [Потоки](#потоки)
+- [Подтверждение почты](#подтверждение-почты)
+- [Вход через Google](#вход-через-google)
+- [Восстановление сессии на устройстве](#восстановление-сессии-на-устройстве)
 - [Ротация и обнаружение кражи](#ротация-и-обнаружение-кражи)
 - [Хранение паролей](#хранение-паролей)
 - [Проверка на каждом запросе](#проверка-на-каждом-запросе)
@@ -35,13 +38,21 @@
   "accessToken": "eyJ...",
   "refreshToken": "eyJ...",
   "expiresIn": 900,
-  "user": { "id": "uuid", "email": "...", "username": "...", "displayName": "...", "role": "USER" }
+  "user": {
+    "id": "uuid", "email": "...", "username": "...",
+    "displayName": "...", "role": "USER", "emailVerified": false
+  }
 }
 ```
 
+`emailVerified` сообщает фронту, подтверждена ли почта: пока `false`, действия
+записи (посты, комментарии, правки профиля) возвращают `403` — см.
+[Подтверждение почты](#подтверждение-почты).
+
 **Полезные нагрузки токенов:**
 
-- access (`JwtPayload`): `sub` (user id), `email`, `username`, `role`.
+- access (`JwtPayload`): `sub` (user id), `email`, `username`, `role`,
+  `emailVerified` (снимок на момент выпуска; access живёт ~15 мин).
 - refresh (`RefreshTokenPayload`): `sub`, `jti` (= `RefreshToken.id`),
   `family` (UUID, объединяет токены одного логина).
 
@@ -53,13 +64,19 @@
 
 1. Пароль хешируется (`PasswordService`, argon2id).
 2. В одной транзакции создаются `User` + `Profile` + подписка `FREE`.
-3. `TokenService` выдаёт пару токенов (новая `family`).
-4. Возвращается `AuthResponseDto`.
+   `emailVerifiedAt` пуст — почта не подтверждена.
+3. Генерируется и «отправляется» 6-значный код подтверждения (см.
+   [Подтверждение почты](#подтверждение-почты)).
+4. `TokenService` выдаёт пару токенов (новая `family`).
+5. Возвращается `AuthResponseDto` (`user.emailVerified === false`). Пользователь
+   залогинен и может **читать**, но не **писать**, пока не подтвердит почту.
 
 ### Вход (`POST /auth/login`)
 
 1. Поиск пользователя по email (case-insensitive).
-2. Проверка пароля (константное время — защита от timing-атак).
+2. Проверка пароля. Verify выполняется **всегда** — даже для несуществующего
+   email (против dummy-хеша) — чтобы время ответа не выдавало зарегистрированные
+   адреса (timing-enumeration). См. [SECURITY_AUDIT.md](./SECURITY_AUDIT.md).
 3. Проверка `status === ACTIVE`.
 4. Выдача пары токенов. Сохраняются `userAgent` и `ip` сессии.
 
@@ -72,6 +89,74 @@
 
 - `POST /auth/logout` — отзыв одного refresh-токена (текущее устройство).
 - `POST /auth/logout-all` (JWT) — отзыв всех активных сессий пользователя.
+
+---
+
+## Подтверждение почты
+
+Продуктовое правило: **читать может любой залогиненный, писать — только с
+подтверждённой почтой**. Реализация — opt-out на уровне HTTP-метода.
+
+**Гейт (`EmailVerifiedGuard`).** Глобальный guard (после `JwtAuthGuard`).
+Безопасные методы (`GET`/`HEAD`/`OPTIONS`) и анонимные запросы пропускаются; для
+залогиненного пользователя на `POST`/`PATCH`/`PUT`/`DELETE` требуется
+`emailVerified`, иначе **`403`**. Исключения помечаются `@AllowUnverified()`
+(сами эндпоинты подтверждения, `logout`, `logout-all`, `GET /auth/me`).
+
+**Коды (`EmailVerificationService`).** 6-значный код, в БД — только SHA-256 хеш
+(таблица `email_verification_codes`), как и refresh-токены. TTL — `EMAIL_CODE_TTL`
+(деф. 900 c), не более 5 попыток, новая выдача гасит прежние коды.
+
+**Доставка (`MailService`).** Если задан `SMTP_HOST` — реальная отправка через
+nodemailer; иначе **dev-режим**: код пишется в лог бэкенда (`npm run
+backend:logs`). Так флоу полностью проверяем без почтового сервера.
+
+**Эндпоинты** (оба — для залогиненного, ещё не подтверждённого; троттлинг):
+
+- `POST /auth/verify-email` `{ code }` → при успехе ставит `emailVerifiedAt`, `204`.
+- `POST /auth/resend-code` → выдать и отправить новый код.
+
+---
+
+## Вход через Google
+
+Серверный OAuth-redirect (passport-google-oauth20). Регистрируется **только если
+заданы `GOOGLE_CLIENT_ID` и `GOOGLE_CLIENT_SECRET`** — без них приложение
+стартует штатно, а маршруты отдают `503`.
+
+1. Фронт уводит браузер на `GET /auth/google`. Guard генерирует одноразовый
+   `state`, кладёт его в `httpOnly`-cookie и подмешивает в URL Google (защита от
+   login CSRF — см. ниже), затем редиректит на экран согласия Google.
+2. `GET /auth/google/callback` сверяет `state` из ответа Google с cookie; при
+   несовпадении — редирект на `…/auth/callback#error=invalid_state`. Стратегия
+   принимает профиль **только с подтверждённой почтой** (`email_verified`),
+   иначе вход отклоняется.
+3. `AuthService.loginWithGoogle()`:
+   - вернувшийся пользователь определяется по `googleId`;
+   - локальный аккаунт на тот же email **линкуется к Google только если у него
+     уже подтверждена почта** (`emailVerifiedAt`); иначе вход отклоняется (`401`)
+     с просьбой войти паролем и подтвердить почту;
+   - иначе создаётся новый, заранее подтверждённый аккаунт (`passwordHash = null`
+     — вход паролем для него невозможен).
+4. Бэкенд редиректит на `FRONTEND_URL/auth/callback#accessToken=…&refreshToken=…`
+   — токены передаются во **фрагменте** URL (не уходит на сервер, не пишется в
+   логи). Фронт сохраняет сессию и тянет `GET /auth/me`.
+
+**Защита от login CSRF (state).** Stateless double-submit: cookie
+`epta_oauth_state` (`httpOnly`, `SameSite=Lax`, `secure` в проде, TTL 10 мин)
+сверяется со значением `state`, которое Google возвращает на callback.
+`express-session` не требуется. Детали — в [SECURITY_AUDIT.md](./SECURITY_AUDIT.md).
+
+---
+
+## Восстановление сессии на устройстве
+
+Чтобы не входить заново при каждом открытии: токены лежат в localStorage, а на
+старте приложения `AuthContext` валидирует сессию через `GET /auth/me` (при `401`
+клиент сам пытается `refresh`). Успех — гидрируем свежего пользователя (в т.ч.
+`emailVerified`); провал — чистим сессию. До завершения проверки флаг
+`bootstrapping` не даёт преждевременно редиректить на `/login`. Refresh-токен
+живёт 30 дней — столько и держится «вход без пароля».
 
 ---
 
@@ -157,7 +242,7 @@ USER (0)  <  MODERATOR (1)  <  ADMIN (2)  <  OWNER (3)
 | **Helmet** | базовые security-заголовки |
 | **CORS** | origin из `CORS_ORIGINS`, `credentials: true` |
 | **ValidationPipe** | `whitelist` + `forbidNonWhitelisted` (лишние поля → `400`) + `transform` |
-| **Throttler** | глобально 120 запросов / 60 c; `register` — 5/60 c, `login` — 10/60 c |
+| **Throttler** | глобально 120 / 60 c; точечные лимиты на чувствительных маршрутах: `register` 5, `login` 10, `verify-email` 10, `resend-code` 3, upload 20, пост 20, комментарий 40, реакции 60, follow 60, сообщение 60, создание чата 10, смена пароля 5 (см. [SECURITY_AUDIT.md](./SECURITY_AUDIT.md)) |
 | **Логи** | Pino редактирует заголовки `authorization` и `cookie` |
 | **Ошибки** | `AllExceptionsFilter` — единый конверт, без утечки внутренних деталей |
 
@@ -172,4 +257,8 @@ USER (0)  <  MODERATOR (1)  <  ADMIN (2)  <  OWNER (3)
 - [ ] `DATABASE_URL` / Redis — не дефолтные пароли.
 - [ ] HTTPS перед API (токены ходят в теле/заголовках).
 - [ ] Не логировать тела auth-запросов и заголовки с токенами (уже настроено).
+      В проде задать `SMTP_*`, чтобы коды уходили на почту, а не в логи.
+- [ ] `FRONTEND_URL` — реальный адрес SPA (куда редиректит OAuth-callback).
+- [ ] `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_CALLBACK_URL` —
+      из Google Cloud Console (без них вход через Google отключён).
 - [ ] `.env` и секреты — вне git (см. `.gitignore`).

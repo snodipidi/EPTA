@@ -9,6 +9,7 @@ import {
   Post,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from '../common';
 import { BlockService } from './services/block.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -26,6 +27,9 @@ export class UsersController {
 
   @Post('me/password')
   @HttpCode(HttpStatus.NO_CONTENT)
+  // Sensitive + argon2-heavy: a strict cap blunts password-guessing on the
+  // authenticated change-password path.
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiOperation({ summary: 'Change my password (revokes all sessions)' })
   changePassword(
     @CurrentUser('id') userId: string,

@@ -9,6 +9,7 @@ import type { Post } from "../types/post";
 import type { UserProfile } from "../types/user";
 import { AvatarIcon } from "../components/icons/Icons";
 import { PostCard } from "../components/PostCard/PostCard";
+import { VerifyEmailBanner } from "../components/VerifyEmailBanner/VerifyEmailBanner";
 
 export function ProfilePage() {
   const navigate = useNavigate();
@@ -61,6 +62,7 @@ export function ProfilePage() {
 
   return (
     <div className="profile-page">
+      <VerifyEmailBanner />
       <section className="profile-page__header">
         <div className="profile-page__avatar">
           <AvatarIcon size={72} />

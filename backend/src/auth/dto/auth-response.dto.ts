@@ -16,6 +16,9 @@ export class AuthUserDto {
 
   @ApiProperty({ enum: ['USER', 'MODERATOR', 'ADMIN', 'OWNER'] })
   role!: string;
+
+  @ApiProperty({ description: 'Whether the user has confirmed their email' })
+  emailVerified!: boolean;
 }
 
 export class AuthResponseDto {

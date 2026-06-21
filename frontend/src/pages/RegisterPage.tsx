@@ -5,6 +5,8 @@ import { GoogleAuthButton } from "../components/Auth/GoogleAuthButton";
 import { AuthLayout } from "../components/AuthLayout/AuthLayout";
 import { useAuth } from "../auth/AuthContext";
 import { ApiError } from "../api/http";
+import { API_BASE_URL } from "../api/config";
+import { ENDPOINTS } from "../api/endpoints";
 
 export function RegisterPage() {
   const navigate = useNavigate();
@@ -29,7 +31,8 @@ export function RegisterPage() {
         // Отдельного поля для отображаемого имени в форме нет — берём юзернейм.
         displayName: handle,
       });
-      navigate("/");
+      // Аккаунт создан, но почта не подтверждена — ведём вводить код.
+      navigate("/verify-email");
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -42,7 +45,8 @@ export function RegisterPage() {
   }
 
   function handleGoogleRegister() {
-    // OAuth — TBD (нет эндпоинта на бэкенде)
+    // Тот же серверный redirect-флоу, что и при входе.
+    window.location.href = `${API_BASE_URL}${ENDPOINTS.google}`;
   }
 
   return (

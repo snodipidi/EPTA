@@ -46,6 +46,11 @@ export function saveTokens(accessToken: string, refreshToken: string): void {
   localStorage.setItem(REFRESH_KEY, refreshToken);
 }
 
+/** Обновляет только сохранённого пользователя (токены не трогает). */
+export function saveUser(user: AuthUser): void {
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
 export function clearSession(): void {
   localStorage.removeItem(ACCESS_KEY);
   localStorage.removeItem(REFRESH_KEY);

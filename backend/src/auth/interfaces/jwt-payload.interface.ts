@@ -7,6 +7,8 @@ export interface JwtPayload {
   email: string;
   username: string;
   role: UserRole;
+  /** Email-verification state at issue-time (access tokens are short-lived). */
+  emailVerified: boolean;
 }
 
 /** Claims carried in the signed refresh token. */

@@ -21,6 +21,30 @@ export interface JwtConfig {
   refreshTtl: string;
 }
 
+export interface AuthFlowConfig {
+  /** Where the SPA lives — OAuth callback redirects the browser back here. */
+  frontendUrl: string;
+  /** Email-verification code lifetime in seconds. */
+  emailCodeTtl: number;
+}
+
+export interface GoogleConfig {
+  clientId?: string;
+  clientSecret?: string;
+  callbackUrl: string;
+  /** Convenience flag: true when the strategy can actually be registered. */
+  enabled: boolean;
+}
+
+export interface MailConfig {
+  from: string;
+  smtpHost?: string;
+  smtpPort: number;
+  smtpSecure: boolean;
+  smtpUser?: string;
+  smtpPass?: string;
+}
+
 export interface ThrottleConfig {
   ttl: number;
   limit: number;
@@ -67,6 +91,31 @@ export default () => ({
       process.env.JWT_REFRESH_SECRET ?? 'dev_refresh_secret_change_me',
     refreshTtl: process.env.JWT_REFRESH_TTL ?? '30d',
   } satisfies JwtConfig,
+
+  authFlow: {
+    frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:5173',
+    emailCodeTtl: parseInt(process.env.EMAIL_CODE_TTL ?? '900', 10),
+  } satisfies AuthFlowConfig,
+
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID || undefined,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET || undefined,
+    callbackUrl:
+      process.env.GOOGLE_CALLBACK_URL ??
+      'http://localhost:3000/api/auth/google/callback',
+    enabled: Boolean(
+      process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET,
+    ),
+  } satisfies GoogleConfig,
+
+  mail: {
+    from: process.env.MAIL_FROM ?? 'EPTA <no-reply@epta.dev>',
+    smtpHost: process.env.SMTP_HOST || undefined,
+    smtpPort: parseInt(process.env.SMTP_PORT ?? '587', 10),
+    smtpSecure: process.env.SMTP_SECURE === 'true',
+    smtpUser: process.env.SMTP_USER || undefined,
+    smtpPass: process.env.SMTP_PASS || undefined,
+  } satisfies MailConfig,
 
   throttle: {
     ttl: parseInt(process.env.THROTTLE_TTL ?? '60', 10),

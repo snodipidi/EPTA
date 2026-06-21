@@ -109,13 +109,21 @@ Content-Type: application/json
 
 ## Auth — регистрация и сессии
 
-Базовый путь: `/api/auth`. Все, кроме `logout-all`, помечены `@Public()`.
+Базовый путь: `/api/auth`. Регистрация/вход/refresh/logout и Google-маршруты —
+`@Public()`; `me`/`verify-email`/`resend-code`/`logout-all` требуют JWT (но
+помечены `@AllowUnverified()` — доступны до подтверждения почты).
 Подробнее о токенах и безопасности — [AUTHENTICATION.md](./AUTHENTICATION.md).
+
+> **Гейт записи.** После регистрации почта не подтверждена. Любые действия
+> записи (`POST`/`PATCH`/`PUT`/`DELETE`) до подтверждения возвращают **`403`**
+> (`EmailVerifiedGuard`). Чтение и `GET` доступны всегда. См.
+> [AUTHENTICATION.md → Подтверждение почты](./AUTHENTICATION.md#подтверждение-почты).
 
 ### `POST /auth/register` · Public · 201
 
 Регистрация. Создаёт `User` + `Profile` + дефолтную подписку `FREE` в одной
-транзакции и сразу выдаёт пару токенов.
+транзакции, генерирует 6-значный код подтверждения почты («отправляется» письмом,
+в dev — в логи) и сразу выдаёт пару токенов (`user.emailVerified === false`).
 
 > Rate limit: 5 запросов / 60 c.
 
@@ -139,7 +147,8 @@ Content-Type: application/json
     "email": "user@epta.dev",
     "username": "user",
     "displayName": "User",
-    "role": "USER"
+    "role": "USER",
+    "emailVerified": false
   }
 }
 ```
@@ -168,6 +177,38 @@ Content-Type: application/json
 ### `POST /auth/logout-all` · JWT · 204
 
 Отзыв **всех** активных сессий пользователя. Без тела.
+
+### `GET /auth/me` · JWT · 200
+
+Текущий пользователь (для восстановления сессии на старте приложения и после
+Google-callback). Доступен и без подтверждённой почты. **Ответ** — объект `user`
+из `AuthResponseDto` (с полем `emailVerified`).
+
+### `POST /auth/verify-email` · JWT · 204
+
+Подтверждение почты 6-значным кодом. При успехе ставит `emailVerifiedAt`.
+
+> Rate limit: 10 запросов / 60 c. Доступен до подтверждения (`@AllowUnverified`).
+
+**Тело (`VerifyEmailDto`):** `code: string` (ровно 6 цифр).
+
+### `POST /auth/resend-code` · JWT · 204
+
+Повторно сгенерировать и отправить код подтверждения. Без тела.
+
+> Rate limit: 3 запроса / 60 c.
+
+### `GET /auth/google` · Public · 302
+
+Начало входа через Google — редирект на экран согласия Google. Если на сервере не
+заданы Google-креды — **`503`**.
+
+### `GET /auth/google/callback` · Public · 302
+
+Callback OAuth. Находит/создаёт пользователя (почта от Google — сразу
+подтверждена), затем редиректит на
+`FRONTEND_URL/auth/callback#accessToken=…&refreshToken=…` (токены — во фрагменте
+URL). При ошибке — `…/auth/callback#error=google_failed`.
 
 ---
 
@@ -525,6 +566,11 @@ REPOST | MENTION | CHAT_MESSAGE | SYSTEM`), `actor?` (`id`, `username`,
 | auth | POST | `/auth/refresh` | Public | 200 |
 | auth | POST | `/auth/logout` | Public | 204 |
 | auth | POST | `/auth/logout-all` | JWT | 204 |
+| auth | GET | `/auth/me` | JWT | 200 |
+| auth | POST | `/auth/verify-email` | JWT | 204 |
+| auth | POST | `/auth/resend-code` | JWT | 204 |
+| auth | GET | `/auth/google` | Public | 302 |
+| auth | GET | `/auth/google/callback` | Public | 302 |
 | users | POST | `/users/me/password` | JWT | 204 |
 | users | DELETE | `/users/me` | JWT | 204 |
 | users | GET | `/users/me/blocks` | JWT | 200 |
@@ -587,10 +633,13 @@ REPOST | MENTION | CHAT_MESSAGE | SYSTEM`), `actor?` (`id`, `username`,
 [FRONTEND_INTEGRATION.md](./FRONTEND_INTEGRATION.md)):
 
 `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`,
-`POST /auth/logout` · `GET /posts`, `GET /posts/:id`, `POST /posts`,
-`POST /posts/:id/like`, `POST /posts/:id/repost` · `GET /posts/:id/comments`,
-`POST /posts/:id/comments` · `GET /profiles/me`, `GET /profiles/:username`,
-`GET /profiles/top`.
+`POST /auth/logout`, `GET /auth/me`, `POST /auth/verify-email`,
+`POST /auth/resend-code`, `GET /auth/google` (+ `/auth/callback` на фронте) ·
+`GET /posts`, `GET /posts/:id`, `POST /posts`, `POST /posts/:id/like` ·
+`GET /posts/:id/comments`, `POST /posts/:id/comments` · `GET /profiles/me`,
+`GET /profiles/:username`, `GET /profiles/top`.
+
+> Репост фронт сознательно не вызывает (кнопка работает как лайк, локально).
 
 Клиентский слой: `frontend/src/api/` (`http.ts` — общий клиент, `endpoints.ts` —
 константы путей).

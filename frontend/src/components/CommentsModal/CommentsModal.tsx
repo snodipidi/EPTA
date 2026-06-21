@@ -30,7 +30,7 @@ function formatTime(iso: string): string {
 
 export function CommentsModal({ post, onClose, onCommentAdded }: CommentsModalProps) {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [comments, setComments] = useState<Comment[]>(() =>
     USE_MOCK ? getCommentsForPost(post.id) : [],
   );
@@ -92,10 +92,16 @@ export function CommentsModal({ post, onClose, onCommentAdded }: CommentsModalPr
       return;
     }
 
-    // Комментировать может только авторизованный пользователь.
+    // Комментировать может только авторизованный пользователь...
     if (!isAuthenticated) {
       onClose();
       navigate("/login");
+      return;
+    }
+    // ...с подтверждённой почтой (иначе бэкенд вернёт 403).
+    if (!user?.emailVerified) {
+      onClose();
+      navigate("/verify-email");
       return;
     }
 

@@ -64,4 +64,5 @@ uploads/
 
 # Misc
 *.tsbuildinfo
-
+CLAUDE.md
+.playwright-mcp

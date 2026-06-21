@@ -14,6 +14,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { CurrentUser, CursorPaginationDto, Public } from '../common';
 import { PaginatedResult } from '../common/dto/pagination.dto';
 import { UserSummaryDto } from './dto/user-summary.dto';
@@ -27,6 +28,8 @@ export class FollowsController {
   @ApiBearerAuth('access-token')
   @Post(':username/follow')
   @HttpCode(HttpStatus.NO_CONTENT)
+  // Bound mass-follow automation beyond the global limit.
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @ApiOperation({ summary: 'Follow a user' })
   follow(
     @CurrentUser('id') userId: string,
@@ -38,6 +41,7 @@ export class FollowsController {
   @ApiBearerAuth('access-token')
   @Delete(':username/follow')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @ApiOperation({ summary: 'Unfollow a user' })
   unfollow(
     @CurrentUser('id') userId: string,

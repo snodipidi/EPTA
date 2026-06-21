@@ -134,12 +134,17 @@ enum MediaStatus {
 // ═════════════════════════════════════════════════════════════════════════════
 
 model User {
-  id           String     @id @default(uuid()) @db.Uuid
-  email        String     @unique
-  username     String     @unique
-  passwordHash String     @map("password_hash")
+  id       String     @id @default(uuid()) @db.Uuid
+  email    String     @unique
+  username String     @unique
+  // Nullable: accounts created via an OAuth provider (e.g. Google) have no
+  // local password. Password login is rejected for such users in the service.
+  passwordHash String? @map("password_hash")
   role         UserRole   @default(USER)
   status       UserStatus @default(ACTIVE)
+
+  // OAuth linkage. Set when the account was created/linked via Google sign-in.
+  googleId String? @unique @map("google_id")
 
   emailVerifiedAt DateTime? @map("email_verified_at")
 
@@ -149,9 +154,10 @@ model User {
   deletedAt DateTime? @map("deleted_at")
 
   // ── Relations ──────────────────────────────────────────────────────────────
-  profile       Profile?
-  refreshTokens RefreshToken[]
-  subscription  Subscription?
+  profile                Profile?
+  refreshTokens          RefreshToken[]
+  emailVerificationCodes EmailVerificationCode[]
+  subscription           Subscription?
 
   posts       Post[]       @relation("PostAuthor")
   comments    Comment[]
@@ -240,6 +246,25 @@ model RefreshToken {
   @@index([userId])
   @@index([family])
   @@map("refresh_tokens")
+}
+
+/// Short-lived email-confirmation code. DECISION: like RefreshToken, we persist a
+/// HASH of the code (sha256), never the raw digits — a DB leak must not reveal a
+/// usable code. One un-consumed, un-expired row per user is treated as active;
+/// `attempts` caps brute-force guessing, `consumedAt` marks single use.
+model EmailVerificationCode {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  codeHash  String    @map("code_hash")
+  attempts  Int       @default(0)
+  expiresAt DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("email_verification_codes")
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

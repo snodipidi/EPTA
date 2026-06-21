@@ -36,6 +36,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
         username: true,
         role: true,
         status: true,
+        emailVerifiedAt: true,
       },
     });
 
@@ -48,6 +49,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       email: user.email,
       username: user.username,
       role: user.role,
+      emailVerified: user.emailVerifiedAt !== null,
     };
   }
 }

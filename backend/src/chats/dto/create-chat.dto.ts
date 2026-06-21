@@ -5,6 +5,7 @@ import {
   IsArray,
   IsOptional,
   IsString,
+  IsUrl,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -33,8 +34,9 @@ export class CreateGroupChatDto {
   @IsString({ each: true })
   memberUsernames!: string[];
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Group avatar URL (http/https only)' })
   @IsOptional()
-  @IsString()
+  @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
+  @MaxLength(500)
   avatarUrl?: string;
 }
