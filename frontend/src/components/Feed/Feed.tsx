@@ -55,7 +55,7 @@ export function Feed() {
   };
 
   return (
-    <main className="feed">
+    <div className="feed">
       <VerifyEmailBanner />
       <PostCreator onSubmit={handleCreatePost} />
 
@@ -68,6 +68,6 @@ export function Feed() {
           ))}
         </div>
       )}
-    </main>
+    </div>
   );
 }

@@ -19,8 +19,15 @@ body {
   background-color: var(--color-bg);
   color: var(--color-text);
   min-height: 100vh;
-  min-width: 1024px;
-  overflow-x: auto;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+@media (min-width: 1024px) {
+  body {
+    min-width: 1024px;
+    overflow-x: auto;
+  }
 }
 
 a {
@@ -54,6 +61,10 @@ img {
 }
 
 .layout__container {
+  display: grid;
+  grid-template-columns: var(--sidebar-col-width) minmax(0, 1fr);
+  column-gap: var(--sidebar-feed-gap);
+  align-items: start;
   width: var(--layout-width);
   max-width: 100%;
   margin-inline: auto;
@@ -62,15 +73,14 @@ img {
 }
 
 .layout__body {
-  display: grid;
-  grid-template-columns: var(--sidebar-col-width) minmax(0, 1fr);
-  column-gap: var(--sidebar-feed-gap);
-  align-items: stretch;
+  min-width: 0;
+  grid-column: 2;
 }
 
 .layout__content {
   min-width: 0;
   max-width: 100%;
+  width: 100%;
   padding-top: var(--space-xl);
 }
 
@@ -150,6 +160,8 @@ img {
 /* ── Sidebar ── */
 
 .sidebar {
+  grid-column: 1;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
   width: var(--sidebar-col-width);
@@ -158,6 +170,11 @@ img {
   padding-top: var(--space-xl);
   padding-bottom: var(--space-xl);
   min-height: calc(100vh - var(--header-height));
+}
+
+/* На десктопе шапка drawer скрыта */
+.sidebar__mobile-header {
+  display: none;
 }
 
 .sidebar__nav {
@@ -1127,4 +1144,342 @@ img {
 
 .auth-page__footer-link:hover {
   color: var(--color-text);
+}
+
+/* ── Mobile overrides (must be last to win the cascade) ── */
+/**
+ * Mobile layout — max-width: 1023px
+ *
+ * Новые страницы: кладите контент в .layout__content (через Layout).
+ * Корневой блок страницы — width: 100%; min-width: 0;
+ */
+
+@media (max-width: 1023px) {
+  :root {
+    --header-height: 56px;
+    --layout-width: 100%;
+    --page-padding-x: 16px;
+  }
+
+  body.menu-open {
+    overflow: hidden;
+  }
+
+  /* ── Layout shell ── */
+
+  .layout {
+    padding-inline: 0;
+  }
+
+  .layout__container {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 100%;
+    margin-inline: auto;
+    padding-top: var(--header-height);
+    padding-bottom: calc(var(--mobile-nav-height) + var(--space-md));
+    column-gap: 0;
+  }
+
+  .layout__body {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    grid-column: auto;
+    flex: 1 1 auto;
+    padding-inline: var(--page-padding-x);
+  }
+
+  .layout__content {
+    width: 100%;
+    max-width: 100%;
+    margin-inline: auto;
+    padding-top: var(--space-md);
+  }
+
+  /* ── Header ── */
+
+  .header {
+    padding-inline: var(--page-padding-x);
+  }
+
+  .header__inner {
+    grid-template-columns: 1fr;
+    column-gap: 0;
+    width: 100%;
+    max-width: 100%;
+    margin-inline: auto;
+  }
+
+  .header__logo {
+    display: none;
+  }
+
+  .header__search {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* ── Sidebar: drawer поверх, вне потока ── */
+
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 140;
+    border: none;
+    background-color: rgba(0, 0, 0, 0.55);
+    cursor: pointer;
+    animation: backdrop-in 0.2s ease forwards;
+  }
+
+  @keyframes backdrop-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(280px, 85vw);
+    z-index: 150;
+    min-height: auto;
+    padding: 0 0 var(--space-xl);
+    background-color: var(--color-bg);
+    border-right: 1px solid var(--color-border-soft);
+    box-shadow: 6px 0 32px rgba(0, 0, 0, 0.5);
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow-y: auto;
+    /* скрываем уродливый нативный скроллбар */
+    scrollbar-width: none;
+  }
+
+  .sidebar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .sidebar--open {
+    transform: translateX(0);
+  }
+
+  /* Шапка drawer с логотипом */
+  .sidebar__mobile-header {
+    display: flex;
+    align-items: center;
+    height: var(--header-height);
+    padding-inline: var(--space-md);
+    border-bottom: 1px solid var(--color-border-soft);
+    flex-shrink: 0;
+  }
+
+  .sidebar__mobile-logo {
+    font-size: var(--font-size-logo);
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: #ffffff;
+    text-shadow: var(--glow-text);
+  }
+
+  .sidebar__nav {
+    padding: var(--space-lg) var(--space-md) var(--space-md);
+  }
+
+  .sidebar__link {
+    font-size: var(--font-size-base);
+    padding: 0.45rem 0;
+  }
+
+  .sidebar__tops {
+    margin-inline: var(--space-md);
+  }
+
+  /* ── Bottom nav ── */
+
+  .mobile-nav {
+    display: flex;
+    align-items: stretch;
+    justify-content: space-around;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 120;
+    height: var(--mobile-nav-height);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    background-color: var(--color-bg);
+    border-top: 1px solid var(--color-border-soft);
+  }
+
+  .mobile-nav__item {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    color: var(--color-text-muted);
+    transition: color 0.15s, opacity 0.15s;
+  }
+
+  .mobile-nav__item:hover {
+    color: var(--color-text);
+  }
+
+  .mobile-nav__item--active {
+    color: #ffffff;
+    text-shadow: var(--glow-text);
+  }
+
+  .mobile-nav__item--active svg {
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.45));
+  }
+
+  /* ── Feed & cards ── */
+
+  .feed,
+  .feed__list,
+  .post-creator,
+  .post-card,
+  .profile-page,
+  .stub-page {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .feed {
+    gap: var(--space-md);
+  }
+
+  .feed__list {
+    gap: var(--space-md);
+  }
+
+  .post-creator {
+    padding: var(--space-md);
+    gap: var(--space-sm);
+  }
+
+  .post-creator__body {
+    min-height: 56px;
+    gap: var(--space-md);
+  }
+
+  .post-card {
+    padding: var(--space-md);
+    gap: var(--space-sm);
+  }
+
+  .post-card__actions-left,
+  .post-card__actions-right {
+    gap: var(--space-md);
+  }
+
+  .post-card__media--grid {
+    grid-template-columns: 1fr;
+  }
+
+  .verify-banner {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+
+  .verify-banner__link {
+    align-self: center;
+  }
+
+  /* ── Profile ── */
+
+  .profile-page {
+    gap: var(--space-md);
+  }
+
+  .profile-page__header {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: var(--space-md);
+    gap: var(--space-md);
+  }
+
+  .profile-page__info {
+    align-items: center;
+  }
+
+  .profile-page__stats {
+    justify-content: center;
+    gap: var(--space-lg);
+  }
+
+  .profile-page__login {
+    margin-left: 0;
+    width: 100%;
+    text-align: center;
+  }
+
+  .profile-page__posts {
+    gap: var(--space-md);
+  }
+
+  .profile-page__posts-list {
+    gap: var(--space-md);
+  }
+
+  /* ── Stub ── */
+
+  .stub-page {
+    min-height: clamp(140px, 40vw, 220px);
+    padding: var(--space-lg);
+  }
+
+  /* ── Modal ── */
+
+  .modal-overlay {
+    padding: var(--space-sm);
+    align-items: flex-end;
+  }
+
+  .modal {
+    max-height: min(85vh, 640px);
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  /* ── Auth pages ── */
+
+  .auth-page {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    align-content: start;
+    gap: var(--space-lg);
+    padding: var(--space-lg) var(--page-padding-x);
+    padding-bottom: calc(var(--space-xl) + env(safe-area-inset-bottom, 0));
+  }
+
+  .auth-page__logo-link {
+    font-size: clamp(2.75rem, 16vw, 4rem);
+  }
+
+  .auth-page__card {
+    max-width: 100%;
+    padding: var(--space-lg) var(--space-md);
+  }
+}
+
+/* Desktop-only: скрыть мобильные элементы */
+.mobile-nav,
+.sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .mobile-nav {
+    display: flex;
+  }
+
+  .sidebar-backdrop {
+    display: block;
+  }
 }

@@ -37,6 +37,10 @@
   --page-padding-x: clamp(16px, 2vw, 32px);
   --sidebar-feed-gap: clamp(28px, 4vw, 48px);
   --sidebar-col-width: 220px;
+
+  /* Mobile (< 1024px) — см. styles/mobile.css */
+  --bp-mobile-max: 1023px;
+  --mobile-nav-height: 56px;
 }
 
 @media (min-width: 1280px) {
