@@ -80,6 +80,14 @@ services:
       SMTP_SECURE: ${SMTP_SECURE:-false}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
+      # ── Python micro-services. Пусто = клиент молчит (graceful no-op, без таймаутов).
+      #    Чтобы включить, задай URL в корневом .env и подними `--profile python`.
+      #    Внутри compose-сети сервисы доступны по имени: http://recommendation:8000 и т.д.
+      PY_RECOMMENDATION_URL: ${PY_RECOMMENDATION_URL:-}
+      PY_MODERATION_URL: ${PY_MODERATION_URL:-}
+      PY_ANALYTICS_URL: ${PY_ANALYTICS_URL:-}
+      PY_SEARCH_URL: ${PY_SEARCH_URL:-}
+      PY_SERVICE_TIMEOUT_MS: ${PY_SERVICE_TIMEOUT_MS:-4000}
     ports:
       - "3000:3000"
     # Run migrations, then boot. Keeps schema in sync on every deploy.
@@ -101,17 +109,79 @@ services:
     volumes:
       - epta_miniodata:/data
 
-  # ── Future Python micro-services (recommendation / moderation /
-  #    analytics / search). Scaffolded here so the integration shape
-  #    is documented; uncomment & implement when ready.
+  # ── Python micro-services (recommendation / moderation / search / analytics).
+  #    Каркас FastAPI-сервисов в ./python-services. Живут за профилем `python`,
+  #    чтобы дефолтный `up` оставался лёгким:
+  #        docker compose --profile python up -d --build
+  #    Внутри сети адресуются по имени сервиса (http://recommendation:8000 и т.д.);
+  #    наружу проброшены на 8001..8004 для отладки.
   #
-  # recommendation-service:
-  #   build: ./python-services/recommendation
-  #   profiles: ["python"]
-  #   environment:
-  #     DATABASE_URL: postgresql://epta:epta_dev_password@postgres:5432/epta
-  #     REDIS_URL: redis://redis:6379
-  #   depends_on: [postgres, redis]
+  #    Общий блок настроек (DATABASE_URL уже в async-форме для asyncpg, REDIS_URL,
+  #    профиль, зависимости, healthcheck) вынесен в YAML-якорь ниже.
+  recommendation: &python-service
+    build:
+      context: ./python-services
+      dockerfile: recommendation/Dockerfile
+    image: epta-recommendation
+    container_name: epta-recommendation
+    profiles: ["python"]
+    restart: unless-stopped
+    environment: &python-env
+      SERVICE_NAME: recommendation
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-epta}:${POSTGRES_PASSWORD:-epta_dev_password}@postgres:5432/${POSTGRES_DB:-epta}
+      REDIS_URL: redis://redis:6379
+      LOG_LEVEL: ${PY_LOG_LEVEL:-INFO}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8001:8000"
+    healthcheck: &python-healthcheck
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health/live').status==200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  moderation:
+    <<: *python-service
+    build:
+      context: ./python-services
+      dockerfile: moderation/Dockerfile
+    image: epta-moderation
+    container_name: epta-moderation
+    environment:
+      <<: *python-env
+      SERVICE_NAME: moderation
+    ports:
+      - "8002:8000"
+
+  search:
+    <<: *python-service
+    build:
+      context: ./python-services
+      dockerfile: search/Dockerfile
+    image: epta-search
+    container_name: epta-search
+    environment:
+      <<: *python-env
+      SERVICE_NAME: search
+    ports:
+      - "8003:8000"
+
+  analytics:
+    <<: *python-service
+    build:
+      context: ./python-services
+      dockerfile: analytics/Dockerfile
+    image: epta-analytics
+    container_name: epta-analytics
+    environment:
+      <<: *python-env
+      SERVICE_NAME: analytics
+    ports:
+      - "8004:8000"
 
 volumes:
   epta_pgdata:

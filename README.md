@@ -7,8 +7,9 @@
 EPTA/
 ├── frontend/           # React 19 + Vite SPA
 ├── backend/            # NestJS API (REST + WebSocket)
+├── python-services/    # FastAPI: рекомендации/модерация/поиск/аналитика (каркас)
 ├── docs/               # документация
-└── docker-compose.yml  # Postgres + Redis + backend (+ MinIO профилем)
+└── docker-compose.yml  # Postgres + Redis + backend (+ MinIO и Python профилями)
 ```
 
 ---
@@ -80,6 +81,24 @@ media, notifications, chats, subscriptions, queues, health).
 
 ---
 
+## Python-сервисы
+
+Бизнес-логика и аналитика, в которых Python сильнее: **recommendation · moderation ·
+search · analytics**. Сейчас это **каркас** (FastAPI 3.12 · SQLAlchemy 2.0 async ·
+Redis) с рабочей инфраструктурой и эндпоинтами-заглушками по контракту, который
+backend уже умеет вызывать. Подробности — [`python-services/README.md`](./python-services/README.md).
+
+Живут за compose-профилем `python`; backend ходит в них, только если заданы
+`PY_*_URL` (иначе — graceful no-op, поведение не меняется). Из `frontend/`:
+
+```bash
+npm run python:build     # собрать и поднять 4 сервиса (порты 8001..8004)
+npm run python:logs      # логи
+npm run python:stop      # погасить
+```
+
+---
+
 ## Документация
 
 Backend:
@@ -95,3 +114,8 @@ Frontend:
 - [Запуск фронтенда (npm-команды)](./frontend/README.md) — установка, dev/dev:mock, backend, seed
 - [Интеграция фронтенда с backend](./docs/FRONTEND_INTEGRATION.md) — моки ⇄ API, клиент, что подключено
 - [Брейкпоинты](./docs/BREAKPOINTS.md) — адаптив десктопной вёрстки
+
+Python-сервисы:
+
+- [Документация Python-сервисов](./docs/PYTHON_SERVICES.md) — контракт, поток данных, доступ к данным, запуск, дорожная карта
+- [Каркас Python-сервисов](./python-services/README.md) — быстрый старт и локальная разработка
