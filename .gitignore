@@ -62,6 +62,15 @@ prisma.config.d.ts
 # Local media uploads (dev storage backend)
 uploads/
 
+# Python (python-services/)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
 # Misc
 *.tsbuildinfo
 CLAUDE.md
