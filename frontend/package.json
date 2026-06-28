@@ -16,7 +16,7 @@
     "seed": "docker compose -p epta -f ../docker-compose.yml exec backend npm run db:seed:prod",
     "python": "docker compose -p epta -f ../docker-compose.yml --profile python up -d",
     "python:build": "docker compose -p epta -f ../docker-compose.yml --profile python up -d --build",
-    "python:logs": "docker compose -p epta -f ../docker-compose.yml --profile python logs -f recommendation moderation search analytics",
+    "python:logs": "docker compose -p epta -f ../docker-compose.yml --profile python logs -f recommendation moderation search analytics bot",
     "python:stop": "docker compose -p epta -f ../docker-compose.yml --profile python stop"
   },
   "dependencies": {

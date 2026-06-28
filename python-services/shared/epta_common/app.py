@@ -22,8 +22,10 @@ from . import redis as redis_mod
 from .logging import configure_logging
 from .settings import Settings, get_settings
 
-# Хук, вызываемый на старте после создания engine/redis (например, создать схему).
+# Хук, вызываемый на старте после создания engine/redis (например, создать схему)
+# или поднять фоновую задачу — и симметричный ему хук остановки (закрыть ресурсы).
 StartupHook = Callable[[FastAPI, Settings], Awaitable[None]]
+ShutdownHook = Callable[[FastAPI, Settings], Awaitable[None]]
 
 
 def create_app(
@@ -32,6 +34,7 @@ def create_app(
     with_db: bool = True,
     with_redis: bool = True,
     on_startup: StartupHook | None = None,
+    on_shutdown: ShutdownHook | None = None,
 ) -> FastAPI:
     """Собирает FastAPI-приложение с общей инфраструктурой EPTA."""
     settings = get_settings()
@@ -55,6 +58,10 @@ def create_app(
         try:
             yield
         finally:
+            # Хук остановки вызывается ДО закрытия engine/redis — чтобы фоновые
+            # задачи успели корректно завершиться, пока инфраструктура ещё жива.
+            if on_shutdown is not None:
+                await on_shutdown(app, settings)
             if with_redis and getattr(app.state, "redis", None) is not None:
                 await app.state.redis.aclose()
             if with_db and getattr(app.state, "engine", None) is not None:

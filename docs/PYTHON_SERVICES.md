@@ -17,6 +17,7 @@
 - [Состояние и принципы](#состояние-и-принципы)
 - [Архитектура и поток данных](#архитектура-и-поток-данных)
 - [Контракт эндпоинтов](#контракт-эндпоинтов)
+- [Telegram-бот (bot-service)](#telegram-бот-bot-service)
 - [Структура каталога](#структура-каталога)
 - [Общий пакет `epta-common`](#общий-пакет-epta-common)
 - [Доступ к данным](#доступ-к-данным)
@@ -115,6 +116,51 @@ Backend обращается к сервисам напрямую по HTTP че
 
 ---
 
+## Telegram-бот (bot-service)
+
+`bot` (внешний порт **8005**) стоит особняком от четырёх сервисов выше: это не
+«запрос-ответ», а **долгоживущий процесс** — Telegram-бот на **aiogram** (Bot API) +
+опциональном **pyrogram** (MTProto-юзербот). Он живёт в том же compose-профиле
+`python` и переиспользует обвязку `epta-common` (health, БД/Redis в `app.state`,
+JSON-логи, конверт ошибок), но FastAPI здесь нужен ради инфраструктуры и двух
+служебных роутов, а не публичного REST.
+
+**Состояние — каркас.** Инфраструктура бота готова и поднимается, но обработчиков
+команд и логики авторизации намеренно нет (их пишут поверх). Полный справочник —
+[`python-services/bot/README.md`](../python-services/bot/README.md).
+
+**Всё включается через env (как и интеграции backend).** Каждая «включающая»
+переменная по умолчанию пуста, и фича выключена:
+
+| Не задано | Поведение |
+|---|---|
+| `BOT_TOKEN` | aiogram-диспетчер не стартует (в Telegram бот не ходит) |
+| `PYROGRAM_API_ID` / `PYROGRAM_API_HASH` | pyrogram-юзербот не поднимается |
+| `BACKEND_API_URL` | клиент к backend — no-op |
+
+Поэтому каркас поднимается и тестируется без токена и без живой инфраструктуры.
+
+**Режимы получения апдейтов** (env `BOT_MODE`):
+
+- `polling` (по умолчанию) — диспетчер крутится фоновой asyncio-задачей внутри
+  процесса; публичный URL не нужен.
+- `webhook` — на старте регистрируется webhook; апдейты приходят на
+  `POST /telegram/webhook` (нужен доступный `BOT_WEBHOOK_URL`, рекомендуется
+  `BOT_WEBHOOK_SECRET`).
+
+**Связь с остальным EPTA — двунаправленная** (обе стороны на стороне бота — каркас):
+
+| Направление | Точка | Что это |
+|---|---|---|
+| бот → backend | `app/services/backend_client.py` | httpx-клиент к REST API NestJS; шлёт обязательный `X-API-Version: 1` (см. [грабли §3 CLAUDE.md](../CLAUDE.md)). Методы под эндпоинты авторизации намечены `TODO`. |
+| backend → бот | `POST /internal/notify` | команда «доставить сообщение пользователю». Каркас подтверждает приём (`202 { accepted: true }`), реальная отправка — `TODO`. Клиента к боту на стороне NestJS пока нет — контракт задаётся моделями бота и согласуется по мере реализации. |
+
+> В отличие от четырёх сервисов выше, у бота нет фиксированного контракта с уже
+> существующим клиентом NestJS — backend пока не знает о боте. Поэтому формы запросов
+> здесь — заготовки, которые согласуются при реализации, а не «нерушимый» контракт.
+
+---
+
 ## Структура каталога
 
 ```
@@ -132,13 +178,21 @@ python-services/
 ├── recommendation/         # FastAPI-сервис (app/ + tests/ + Dockerfile + pyproject)
 ├── moderation/
 ├── search/
-└── analytics/              # + своя схема `analytics` и таблица `events`
+├── analytics/              # + своя схема `analytics` и таблица `events`
+└── bot/                    # Telegram-бот (aiogram+pyrogram), долгоживущий процесс
 ```
 
-Каждый сервис устроен одинаково: `app/main.py` (эндпоинт + сборка приложения через
-`create_app`), `app/schemas.py` (Pydantic-контракт), `app/service.py` (логика —
-сейчас заглушка с пометками `TODO`), `tests/` (smoke-тесты), `Dockerfile`,
-`pyproject.toml` (зависит от `epta-common` по относительному пути).
+Четыре «запрос-ответ»-сервиса устроены одинаково: `app/main.py` (эндпоинт + сборка
+приложения через `create_app`), `app/schemas.py` (Pydantic-контракт),
+`app/service.py` (логика — сейчас заглушка с пометками `TODO`), `tests/`
+(smoke-тесты), `Dockerfile`, `pyproject.toml` (зависит от `epta-common` по
+относительному пути).
+
+`bot/` богаче из-за природы бота: к этому набору добавлены `app/config.py`
+(настройки бота поверх общих), `app/bot/` (ядро aiogram: `factory` + `runner`),
+`app/handlers/` (роутеры), `app/middlewares/` (внедрение зависимостей),
+`app/userbot/` (pyrogram-менеджер) и `app/services/` (клиент к backend). Подробно —
+в [`bot/README.md`](../python-services/bot/README.md).
 
 ---
 
@@ -190,6 +244,13 @@ python-services/
 В `docker-compose.yml` эти значения проставлены для каждого сервиса (БД/Redis —
 по именам сервисов `postgres`/`redis` в compose-сети).
 
+**Переменные bot-сервиса** (поверх общих; читает `bot/app/config.py`): `BOT_TOKEN`,
+`BOT_MODE`, `BOT_WEBHOOK_URL`/`BOT_WEBHOOK_SECRET`, `PYROGRAM_API_ID`/
+`PYROGRAM_API_HASH`/`PYROGRAM_SESSION_STRING`, `BACKEND_API_URL`,
+`INTERNAL_API_TOKEN`. Все «включающие» по умолчанию пусты — полный список и смысл в
+[`bot/README.md`](../python-services/bot/README.md), шаблон — в корневом
+[`.env.example`](../.env.example).
+
 **Переменные backend** (включают интеграцию; читает `backend/src/config/configuration.ts`):
 
 | Env | Назначение |
@@ -212,8 +273,8 @@ python-services/
 Из каталога `frontend/` (скрипты пиннят `-p epta -f ../docker-compose.yml`):
 
 ```bash
-npm run python:build     # собрать и поднять 4 сервиса (порты 8001..8004)
-npm run python:logs      # логи всех четырёх
+npm run python:build     # собрать и поднять все сервисы (порты 8001..8004 + bot на 8005)
+npm run python:logs      # логи всех (включая bot)
 npm run python:stop      # погасить
 ```
 

@@ -10,9 +10,10 @@ React + TS  →  NestJS API Gateway  →  PostgreSQL / Redis / S3
                        │
                        ▼  (HTTP, graceful degradation)
               Python micro-services
-        ┌────────────┬────────────┬───────────┬───────────┐
-        ▼            ▼            ▼           ▼
-  recommendation  moderation    search    analytics
+        ┌────────────┬────────────┬───────────┬───────────┬───────────┐
+        ▼            ▼            ▼           ▼           ▼
+  recommendation  moderation    search    analytics      bot
+                                                     (Telegram, aiogram+pyrogram)
 ```
 
 ## Сервисы и контракт
@@ -30,6 +31,11 @@ Backend зовёт сервисы напрямую по HTTP (без `X-API-Vers
 
 Каждый сервис также отдаёт `GET /health/live` (liveness) и `GET /health`
 (readiness: проверка БД + Redis), Swagger — на `/docs`.
+
+Отдельно стоит **`bot`** (порт 8005) — Telegram-бот на aiogram + pyrogram. Это не
+«запрос-ответ», а долгоживущий процесс (см.
+[`bot/README.md`](./bot/README.md)). Сейчас — каркас: инфраструктура готова,
+обработчики команд и логика авторизации пишутся поверх.
 
 > Заглушки возвращают **безопасные дефолты**: пустой список / `APPROVED` / `202`.
 > Это значит, что включение сервиса не меняет поведение продукта, пока в нём нет
@@ -50,7 +56,8 @@ python-services/
 ├── recommendation/         # FastAPI-сервис (app/ + tests/ + Dockerfile + pyproject)
 ├── moderation/
 ├── search/
-└── analytics/              # + своя схема `analytics` и таблица events
+├── analytics/              # + своя схема `analytics` и таблица events
+└── bot/                    # Telegram-бот (aiogram+pyrogram), долгоживущий процесс
 ```
 
 ### Доступ к данным

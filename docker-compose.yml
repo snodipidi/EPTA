@@ -183,6 +183,35 @@ services:
     ports:
       - "8004:8000"
 
+  # ── Telegram-бот (aiogram + pyrogram). Каркас в ./python-services/bot.
+  #    Долгоживущий процесс: по умолчанию long-polling. Все «включающие» env пусты —
+  #    без BOT_TOKEN бот не стартует диспетчер, но контейнер и /health работают.
+  #    Наружу проброшен на 8005 (health/webhook/internal API), внутри сети — 8000.
+  bot:
+    <<: *python-service
+    build:
+      context: ./python-services
+      dockerfile: bot/Dockerfile
+    image: epta-bot
+    container_name: epta-bot
+    environment:
+      <<: *python-env
+      SERVICE_NAME: bot
+      # ── Telegram Bot API (aiogram). Пусто = бот не ходит в Telegram. ──
+      BOT_TOKEN: ${BOT_TOKEN:-}
+      BOT_MODE: ${BOT_MODE:-polling}
+      BOT_WEBHOOK_URL: ${BOT_WEBHOOK_URL:-}
+      BOT_WEBHOOK_SECRET: ${BOT_WEBHOOK_SECRET:-}
+      # ── Pyrogram MTProto-юзербот (опционально, доп. возможности сверх Bot API). ──
+      PYROGRAM_API_ID: ${PYROGRAM_API_ID:-0}
+      PYROGRAM_API_HASH: ${PYROGRAM_API_HASH:-}
+      PYROGRAM_SESSION_STRING: ${PYROGRAM_SESSION_STRING:-}
+      # ── Исходящие вызовы к backend (NestJS REST). Внутри сети backend на :3000. ──
+      BACKEND_API_URL: ${BACKEND_API_URL:-http://backend:3000/api}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
+    ports:
+      - "8005:8000"
+
 volumes:
   epta_pgdata:
   epta_redisdata:
