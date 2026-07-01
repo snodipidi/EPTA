@@ -10,6 +10,12 @@ export class PostImageDto {
 
   @ApiPropertyOptional()
   alt?: string;
+
+  @ApiPropertyOptional({ description: 'Intrinsic width in pixels (for layout reservation)' })
+  width?: number;
+
+  @ApiPropertyOptional({ description: 'Intrinsic height in pixels (for layout reservation)' })
+  height?: number;
 }
 
 /** Mirrors frontend `PostCounters`. */

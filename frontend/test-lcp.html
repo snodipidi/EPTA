@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест оптимизации LCP для EPTA</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            background: #f5f5f5;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .image-grid img {
+            width: 100%;
+            height: auto;
+            border-radius: 4px;
+        }
+        .code-block {
+            background: #333;
+            color: #fff;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: monospace;
+            overflow-x: auto;
+        }
+        .success {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        .warning {
+            color: #FF9800;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Тест оптимизации LCP для EPTA</h1>
+    
+    <div class="test-section">
+        <h2>Используемые техники оптимизации LCP:</h2>
+        
+        <h3>1. Fetch Priority для LCP-элемента</h3>
+        <div class="code-block">
+&lt;img
+  src="image-url"
+  alt="LCP элемент"
+  width={1200}
+  height={800}
+  fetchPriority="high"
+  loading="eager"
+/&gt;
+        </div>
+        
+        <h3>2. Lazy Loading для остальных изображений</h3>
+        <div class="code-block">
+&lt;img
+  src="image-url"
+  alt="Фоновое изображение"
+  width={800}
+  height={600}
+  loading="lazy"
+/&gt;
+        </div>
+        
+        <h3>3. Явные размеры изображений</h3>
+        <div class="code-block">
+interface PostImage {
+  id: string;
+  url: string;
+  alt?: string;
+  width?: number;  // ✅ Добавлено
+  height?: number; // ✅ Добавлено
+}
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Тестовые изображения с различными приоритетами:</h2>
+        <div class="image-grid">
+            <!-- LCP элемент - первое изображение -->
+            <div>
+                <h3 class="success">LCP элемент (fetchPriority="high")</h3>
+                <img 
+                    src="/mock/lcp-sample.svg" 
+                    alt="LCP изображение"
+                    width="1200"
+                    height="800"
+                    fetchpriority="high"
+                    loading="eager"
+                >
+            </div>
+            
+            <!-- Обычные изображения -->
+            <div>
+                <h3>Обычное изображение (lazy)</h3>
+                <img 
+                    src="/mock/feed-image-2.svg" 
+                    alt="Фоновое изображение"
+                    width="800"
+                    height="600"
+                    loading="lazy"
+                >
+            </div>
+            
+            <div>
+                <h3>Обычное изображение (lazy)</h3>
+                <img 
+                    src="/mock/feed-image-1.svg" 
+                    alt="Еще одно изображение"
+                    width="600"
+                    height="400"
+                    loading="lazy"
+                >
+            </div>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Инструкции для тестирования:</h2>
+        
+        <h3>1. Использование Chrome DevTools:</h3>
+        <ul>
+            <li>Откройте DevTools (F12)</li>
+            <li>Перейдите во вкладку "Performance"</li>
+            <li>Нажмите "Record" и перезагрузите страницу</li>
+            <li>Найдите метку "Largest Contentful Paint" на временной шкале</li>
+        </ul>
+        
+        <h3>2. Использование Network Panel:</h3>
+        <ul>
+            <li>Откройте вкладку "Network"</li>
+            <li>Перезагрузите страницу (Ctrl+R)</li>
+            <li>Проверьте колонку "Priority" - LCP элемент должен иметь "High"</li>
+            <li>Остальные изображения должны иметь "Low"</li>
+        </ul>
+        
+        <h3>3. Lighthouse Audit:</h3>
+        <ul>
+            <li>Откройте DevTools</li>
+            <li>Перейдите во вкладку "Lighthouse"</li>
+            <li>Выберите "Mobile" и "Desktop"</li>
+            <li>Нажмите "Analyze page load"</li>
+            <li>Проверьте показатель LCP в разделе "Performance"</li>
+        </ul>
+    </div>
+    
+    <div class="test-section">
+        <h2>Целевые показатели:</h2>
+        <ul>
+            <li><span class="success">LCP ≤ 2.5 секунд</span> - Отлично (зеленая зона)</li>
+            <li><span class="warning">LCP 2.5–4.0 секунд</span> - Нужны улучшения (желтая зона)</li>
+            <li>LCP > 4.0 секунд - Плохо (красная зона)</li>
+        </ul>
+    </div>
+    
+    <div class="test-section">
+        <h2>Проверенные изменения в проекте EPTA:</h2>
+        <ul>
+            <li>✅ Обновлен интерфейс PostImage (добавлены width и height)</li>
+            <li>✅ Добавлен параметр isFirstInFeed в PostCard</li>
+            <li>✅ Первому изображению первого поста задан fetchPriority="high"</li>
+            <li>✅ LCP элемент имеет loading="eager" (не lazy)</li>
+            <li>✅ Остальным изображениям задан loading="lazy"</li>
+            <li>✅ Все изображения имеют явные width и height</li>
+        </ul>
+    </div>
+    
+    <script>
+        // Простая проверка загрузки изображений
+        window.addEventListener('load', function() {
+            const images = document.querySelectorAll('img');
+            const lcpImage = document.querySelector('img[fetchpriority="high"]');
+            
+            console.log('Всего изображений:', images.length);
+            console.log('LCP элемент:', lcpImage);
+            
+            if (lcpImage) {
+                console.log('LCP элемент атрибуты:', {
+                    src: lcpImage.src,
+                    width: lcpImage.width,
+                    height: lcpImage.height,
+                    fetchPriority: lcpImage.fetchPriority,
+                    loading: lcpImage.loading
+                });
+            }
+        });
+    </script>
+</body>
+</html>

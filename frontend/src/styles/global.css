@@ -548,14 +548,20 @@ img {
 
 .post-card__media--grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, 1fr);
   gap: 2px;
 }
 
 .post-card__image {
   width: 100%;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 3 / 2;
   object-fit: cover;
+  display: block;
+}
+
+/* Fallback when the API did not provide intrinsic dimensions */
+.post-card__image:not([width]) {
+  aspect-ratio: 16 / 9;
 }
 
 .post-card__actions {

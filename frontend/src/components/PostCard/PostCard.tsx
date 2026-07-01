@@ -19,6 +19,7 @@ import {
 interface PostCardProps {
   post: Post;
   onCommentCountChange?: (postId: string, delta: number) => void;
+  isFirstInFeed?: boolean;
 }
 
 function formatTime(iso: string): string {
@@ -34,7 +35,7 @@ function formatTime(iso: string): string {
   return date.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
 }
 
-export function PostCard({ post, onCommentCountChange }: PostCardProps) {
+export function PostCard({ post, onCommentCountChange, isFirstInFeed = false }: PostCardProps) {
   const { author, text, hashtags, images, counters, createdAt, replyTo } = post;
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
@@ -141,15 +142,24 @@ export function PostCard({ post, onCommentCountChange }: PostCardProps) {
           <div
             className={`post-card__media${images.length > 1 ? " post-card__media--grid" : ""}`}
           >
-            {images.map((img) => (
-              <img
-                key={img.id}
-                src={img.url}
-                alt={img.alt ?? ""}
-                className="post-card__image"
-                loading="lazy"
-              />
-            ))}
+            {images.map((img, index) => {
+              // Первое изображение первого поста в ленте - это LCP-элемент
+              const isLcpElement = isFirstInFeed && index === 0;
+              
+              return (
+                <img
+                  key={img.id}
+                  src={img.url}
+                  alt={img.alt ?? ""}
+                  className="post-card__image"
+                  width={img.width}
+                  height={img.height}
+                  // LCP-элемент должен загружаться с высоким приоритетом без lazy loading
+                  fetchPriority={isLcpElement ? "high" : undefined}
+                  loading={isLcpElement ? "eager" : "lazy"}
+                />
+              );
+            })}
           </div>
         )}
 

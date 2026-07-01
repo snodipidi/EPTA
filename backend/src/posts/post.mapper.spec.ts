@@ -51,7 +51,13 @@ describe('PostMapper', () => {
     const post = basePost();
     (post.media as unknown[]) = [
       {
-        media: { id: 'm1', storageKey: 'media/u1/x.webp', altText: 'описание' },
+        media: {
+          id: 'm1',
+          storageKey: 'media/u1/x.webp',
+          altText: 'описание',
+          width: 1200,
+          height: 800,
+        },
       },
     ];
     const dto = mapper.toResponse(post);
@@ -59,6 +65,8 @@ describe('PostMapper', () => {
       id: 'm1',
       url: 'https://cdn.epta.test/media/u1/x.webp',
       alt: 'описание',
+      width: 1200,
+      height: 800,
     });
   });
 

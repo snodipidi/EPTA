@@ -11,8 +11,23 @@ export const mockPosts: Post[] = [
     },
     text: "Сам пост бла бла блаблаблаблабла",
     hashtags: ["теги", "теги", "теги"],
-    images: [],
-    mediaPlaceholder: true,
+    images: [
+      {
+        id: "img1",
+        url: "/mock/feed-image-1.svg",
+        alt: "Пример изображения для LCP",
+        width: 1200,
+        height: 800
+      },
+      {
+        id: "img2",
+        url: "/mock/feed-image-2.svg",
+        alt: "Второе изображение",
+        width: 800,
+        height: 600
+      }
+    ],
+    mediaPlaceholder: false,
     counters: { comments: 12, reposts: 5, likes: 10 },
     createdAt: "2026-06-09T10:30:00Z",
     replyTo: {

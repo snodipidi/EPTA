@@ -63,8 +63,12 @@ export function Feed() {
         <p className="feed__status">Загрузка...</p>
       ) : (
         <div className="feed__list">
-          {posts.map((post) => (
-            <PostCard key={post.id} post={post} />
+          {posts.map((post, index) => (
+            <PostCard 
+              key={post.id} 
+              post={post} 
+              isFirstInFeed={index === 0}
+            />
           ))}
         </div>
       )}

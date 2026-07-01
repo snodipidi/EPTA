@@ -27,6 +27,8 @@ export class PostMapper {
       id: link.media.id,
       url: this.publicUrl(link.media.storageKey),
       alt: link.media.altText ?? undefined,
+      width: link.media.width ?? undefined,
+      height: link.media.height ?? undefined,
     }));
 
     return {
